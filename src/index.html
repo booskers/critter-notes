@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Critter Notes</title>
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+<script src="config.js"></script>
+<script src="homebase.js"></script>
+</head>
+<body>
+<a href="#main" id="skip" class="skip">Skip to the page</a>
+<!-- the window's title bar: the window is frameless, so the page draws Critter's kind of bar itself -->
+<div id="titlebar" role="banner">
+  <button type="button" class="wb-brand" id="appMenu" title="Critter Notes menu" aria-haspopup="menu"><img class="wb-logo" src="icon.svg" alt=""><span class="wb-name">Critter Notes</span><svg class="wb-caret" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  <div class="wb-nav">
+    <button type="button" id="sideToggle" title="Show or hide the sidebar" aria-label="Sidebar" aria-pressed="true"><svg class="ic" viewBox="0 0 24 24"><path d="M3 5a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z M9 4v16"/></svg></button>
+    <button type="button" id="backBtn" title="Back (Alt+←)" aria-label="Back"><svg class="ic" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <button type="button" id="fwdBtn" title="Forward (Alt+→)" aria-label="Forward"><svg class="ic" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+  </div>
+  <div class="wb-title" id="winTitle"></div>
+  <div class="wb-nav">
+    <button type="button" id="focusBtn" title="Focus: only the page (Ctrl+.)" aria-label="Focus: only the page" aria-pressed="false"><svg class="ic" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3 M16 3h3a2 2 0 0 1 2 2v3 M8 21H5a2 2 0 0 1-2-2v-3 M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
+    <button type="button" id="rightToggle" title="Side panel: links, the table, Critter Sounds (Ctrl+\)" aria-label="Side panel"><svg class="ic" viewBox="0 0 24 24"><path d="M3 5a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z M15 4v16"/></svg></button>
+  </div>
+  <div class="wb-ctl">
+    <button type="button" class="wb-min" title="Minimize" aria-label="Minimize"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></button>
+    <button type="button" class="wb-max" title="Maximize" aria-label="Maximize"><svg class="sq" viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg><svg class="rs" viewBox="0 0 10 10"><rect x=".5" y="2.5" width="7" height="7"/><path d="M2.5 2.5V.5h7v7h-2"/></svg></button>
+    <button type="button" class="wb-close" title="Close" aria-label="Close"><svg viewBox="0 0 10 10"><path d="M.5.5l9 9M9.5.5l-9 9"/></svg></button>
+  </div>
+</div>
+<div id="app">
+  <aside id="side" hidden aria-label="Campaign and documents">
+    <button type="button" id="campBtn" class="campbtn" title="Switch campaign"><i id="campDot"></i><span class="cn"><b id="campName"></b><small id="campSys"></small></span><svg class="ic" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg></button>
+    <div class="sact">
+      <button type="button" id="findBtn" class="findbtn"><svg class="ic" viewBox="0 0 24 24"><path d="M11 18.5a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15z M21 21l-4.6-4.6"/></svg><span>Find</span><kbd>Ctrl K</kbd></button>
+      <button type="button" id="newBtn" class="btn primary" title="New document (Ctrl+N)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14 M5 12h14"/></svg><span>New</span></button>
+    </div>
+    <nav id="nav" aria-label="Campaign"></nav>
+    <div class="sfilter"><input id="sideFilter" type="search" placeholder="Filter by name or #tag" spellcheck="false" aria-label="Filter the documents by name or #tag"><button type="button" id="sideMode" class="ib"></button></div>
+    <div id="tree"></div>
+    <div class="sfoot">
+      <button type="button" id="tableChip" class="chip" aria-label="The Critter table"><span>No table linked</span></button>
+      <button type="button" id="soundChip" class="chip" hidden><span></span></button>
+    </div>
+    <div id="sideGrip" class="grip"></div>
+  </aside>
+  <main id="main" tabindex="-1"></main>
+  <div id="rightWrap"><div id="rightGrip" class="grip"></div><aside id="right" hidden aria-label="Side panel"></aside></div>
+</div>
+<div id="ac" class="ac" role="listbox" aria-label="Suggestions" hidden></div>
+<div id="hov" class="hov" role="tooltip" hidden></div>
+<div id="toast" class="toast" role="status" hidden></div>
+<datalist id="titlesList"></datalist>
+<script src="kinds.js"></script>
+<script src="md.js"></script>
+<script src="store.js"></script>
+<script src="table.js"></script>
+<script src="srd.js"></script>
+<script src="mind.js"></script>
+<script src="map.js"></script>
+<script src="board.js"></script>
+<script src="plan.js"></script>
+<script src="views.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
