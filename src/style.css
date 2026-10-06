@@ -894,3 +894,22 @@ input[type=range].tint:hover::-webkit-slider-thumb{box-shadow:0 0 0 3px var(--ac
 .logomark{display:block;background:var(--logo-ink,var(--accent));-webkit-mask:url(icon.svg) center/contain no-repeat;mask:url(icon.svg) center/contain no-repeat}
 :root[data-theme=light] .logomark{--logo-ink:color-mix(in oklab,var(--accent) 72%,black)}
 .heroicon.logomark{margin:0 auto}
+/* one flat button style across Critter VTT, Sounds and Notes: 8px corners, no outline, no gradient, no lift.
+   Buttons sit on the hover tone; the main action and anything switched on are filled with the highlight. */
+.btn,.btn.tiny,.btn.big{border-radius:8px;border-color:transparent;box-shadow:none;background:var(--hover);transform:none}
+.btn:hover{background:var(--hover-2);border-color:transparent}
+.btn.ghost{background:transparent}.btn.ghost:hover{background:var(--hover)}
+.btn.glass{background:rgba(10,12,12,.55)}
+.btn.primary,.btn.on,.btn[aria-pressed=true],.ib.on,.ib[aria-pressed=true],.segb.on,.segb[aria-pressed=true],.pills button.on,.tchip.on,.mbar .addpin.on{
+  background:var(--accent);color:var(--on-accent);border-color:transparent;box-shadow:inset 0 1px 0 rgb(255 255 255/.22);transition:filter .12s}
+.btn.primary:hover,.btn.on:hover,.btn[aria-pressed=true]:hover,.ib.on:hover,.segb.on:hover,.pills button.on:hover,.tchip.on:hover{background:var(--accent);color:var(--on-accent);filter:brightness(1.07);box-shadow:inset 0 1px 0 rgb(255 255 255/.22);transform:none}
+.btn.primary:active,.btn.on:active,.ib.on:active,.segb.on:active,.pills button.on:active,.tchip.on:active{filter:brightness(.94)}
+.tchip.on i,.ib.on .ic{color:inherit}
+.seg,:root[data-theme=light] .seg,.pills{background:none;border:0;padding:0;gap:2px}
+.segb,.pills button{border-radius:8px}
+.tchip{border-radius:8px;border-color:transparent;background:var(--hover)}
+/* tabs: the open one takes the hover tone, the strip sits on the window */
+.rtabs{background:none;gap:4px;padding:8px 8px 4px}
+.rtab{border-radius:8px;border-bottom:0}
+.rtab:hover{background:var(--hover);color:var(--ink)}
+.rtab.on{background:var(--hover-2);color:var(--ink);border-color:transparent}
