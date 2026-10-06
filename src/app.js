@@ -182,6 +182,10 @@ function applyLook() {
   const st = document.documentElement.style, ink = c => { const n = parseInt(c.slice(1), 16), l = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; return l > 0.6 ? '#04110f' : '#ffffff'; };
   if (A.prefs.accent) { st.setProperty('--accent', A.prefs.accent); st.setProperty('--accent-ink', ink(A.prefs.accent)); } else { st.removeProperty('--accent'); st.removeProperty('--accent-ink'); }
   if (A.prefs.accent2) st.setProperty('--accent2', A.prefs.accent2); else st.removeProperty('--accent2');
+  // the shared design system's knobs: surface tint, how far pictures spill their colour, and the font pairing
+  st.setProperty('--hue', (Number.isFinite(A.prefs.tint) ? A.prefs.tint : 4) + '%');
+  st.setProperty('--bleed', Number.isFinite(A.prefs.bleed) ? A.prefs.bleed : 1);
+  applyFontSet(document.documentElement, A.prefs.fonts || 'Easy reading');
   const gb = $('#gearBtn'); if (gb) gb.classList.toggle('on', A.view.k === 'settings');
   document.body.classList.toggle('focus', !!A.prefs.focus && A.view.k === 'doc');
   document.body.classList.toggle('notools', !A.prefs.toolbar);
@@ -337,11 +341,11 @@ function renderDoc(main, d) {
       full ? h('span', { class: 'crumb cur', html: icon(TYPES[d.type].icon) }) : h('span', { class: 'crumb cur', text: TYPES[d.type].name + (ro ? ' · ' + A.wname : '') })),
     full ? fullTitle(d, ro) : null,
     h('div', { class: 'grow' }),
-    d.type === 'session' && !ro ? btn(mode === 'run' ? 'stop' : 'play', mode === 'run' ? 'Stop running' : 'Run the session', () => setMode(d, mode === 'run' ? 'read' : 'run'), 'tiny' + (mode === 'run' ? ' on' : ' accent2')) : null,
+    d.type === 'session' && !ro ? btn(mode === 'run' ? 'stop' : 'play', mode === 'run' ? 'Stop running' : 'Run the session', () => setMode(d, mode === 'run' ? 'read' : 'run'), 'tiny runb' + (mode === 'run' ? ' on' : ' accent2')) : null,
     full ? h('button', { type: 'button', class: 'ib' + (A.prefs.drawer ? ' on' : ''), 'aria-pressed': String(!!A.prefs.drawer), title: 'Details and notes', 'aria-label': 'Details and notes', html: icon('panel'), onclick: () => { A.prefs.drawer = !A.prefs.drawer; savePrefs(); renderMain(); } }) : null,
     lockBtn,
-    !full ? h('button', { type: 'button', class: 'ib' + (mode === 'mind' ? ' on' : ''), title: 'Mind map (Ctrl+M)', 'aria-label': 'Mind map', 'aria-pressed': String(mode === 'mind'), html: icon('mind'), onclick: () => setMode(d, mode === 'mind' ? 'read' : 'mind') }) : null,
-    SYNC.isPlayer() ? null : btn('send', 'Send to table', e => VIEWS.sendMenu(d, e.currentTarget), 'tiny primary'),
+    !full ? h('button', { type: 'button', class: 'ib mindb' + (mode === 'mind' ? ' on' : ''), title: 'Mind map (Ctrl+M)', 'aria-label': 'Mind map', 'aria-pressed': String(mode === 'mind'), html: icon('mind'), onclick: () => setMode(d, mode === 'mind' ? 'read' : 'mind') }) : null,
+    SYNC.isPlayer() ? null : btn('send', 'Send to table', e => VIEWS.sendMenu(d, e.currentTarget), 'tiny primary sendb'),
     ro || SYNC.isPlayer() ? null : ib('dots', 'More for this document', e => docMenu(d, e.currentTarget)));
   main.append(bar);
   if (mode === 'mind') { main.append(h('h1', { class: 'sr', text: `${d.title}: mind map` }), mindPane(d)); return; }
@@ -728,8 +732,12 @@ function kindMenu(d, at) {
 function docMenu(d, at, y) {
   if (SYNC.isPlayer() || isRO(d)) return;
   const pos = typeof at === 'number' ? { x: at, y } : at, here = A.view.k === 'doc' && A.view.id === d.id, m = modeOf(d);
+  // a narrow document bar folds Run and the mind map in here (the lock is always here)
+  const bar = $('.docbar'), narrow = here && !!bar && bar.clientWidth <= 560;
   menu([
     here ? null : { label: 'Open', icon: 'open', fn: () => openDoc(d.id) },
+    narrow && d.type === 'session' ? { label: m === 'run' ? 'Stop running' : 'Run the session', icon: m === 'run' ? 'stop' : 'play', fn: () => setMode(d, m === 'run' ? 'read' : 'run') } : null,
+    narrow && !['board', 'map'].includes(d.type) ? { label: 'Mind map', icon: 'mind', check: m === 'mind', fn: () => setMode(d, m === 'mind' ? 'read' : 'mind') } : null,
     here && !['board', 'map'].includes(d.type) ? { label: d.locked ? 'Unlock it' : 'Lock it', icon: d.locked ? 'unlock' : 'lock', fn: () => toggleLock(d) } : null,
     here ? { label: 'Focus on the page', icon: 'focus', check: !!A.prefs.focus, fn: () => toggleFocus() } : null,
     TABLE.on() ? { label: d.live ? 'Stop showing it to the players' : 'Keep it shown to the players', sub: d.live ? '' : 'They see every change', icon: 'eye', check: !!d.live, fn: () => { d.live = !d.live; touch(d, true); if (d.live) VIEWS.send(d, 'show'); render(); } } : null,
@@ -878,7 +886,7 @@ function paintChips() {
   const T = TABLE.T, c = $('#tableChip'), s = $('#soundChip');
   c.className = 'chip ' + ({ on: 'ok', connecting: 'warn', error: 'bad', missing: 'bad' }[T.state] || '');
   c.querySelector('span').textContent = T.state === 'on' ? `Table ${T.code}` : T.state === 'connecting' ? 'Linking…' : T.state === 'off' ? 'No table linked' : 'Table not found';
-  c.title = T.why || (T.state === 'on' ? 'Linked to the Critter table ' + T.code : 'Link this campaign to its Critter table to send things to it and take things from it');
+  c.title = T.why || (T.state === 'on' ? 'Linked to the Critter VTT table ' + T.code : 'Link this campaign to its Critter VTT table to send things to it and take things from it');
   const snd = T.state === 'on' && T.sounds && Date.now() - (+T.sounds.ts || 0) < 36 * 3600e3;
   s.hidden = T.state !== 'on' || SYNC.isPlayer(); s.className = 'chip ' + (snd && T.keyOk ? 'ok' : snd ? 'warn' : '');
   s.querySelector('span').textContent = snd ? (T.keyOk ? 'Sounds ready' : T.key ? 'Sounds: key out of date' : 'Sounds: no music key') : 'Sounds not seen';

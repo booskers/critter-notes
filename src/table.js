@@ -1,18 +1,18 @@
-/* Critter Notes and the table: a campaign can be linked to a Critter lobby through Homebase (the same connection the
+/* Critter Notes and the table: a campaign can be linked to a Critter VTT lobby through Homebase (the same connection the
    Critter app and Critter Sounds use). Notes then reads the table (its Library, the GM's notebook, scenes, players,
    the chat log and what Critter Sounds can play) and writes to it:
      lobbies/<code>/ents/<id>         Library entries (NPCs and items), owner 'gm'
      lobbies/<code>/notes/<id>        notes in the GM's notebook, or handouts (dm: true) with the players' copies
      lobbies/<code>/scenes/<id> + scenebg/<id>_<n> + the lobby's scene list    a map as a new scene, hidden until revealed
      lobbies/<code>/cues/<id>         a cue for Critter Sounds, signed with the music key (Sounds checks it, plays, deletes it)
-   Everything is written as the lobby allows anyone with its code to; nothing here needs the Critter page to change. */
+   Everything is written as the lobby allows anyone with its code to; nothing here needs the Critter VTT page to change. */
 const TABLE = (() => {
   const T = { db: null, code: '', key: '', state: 'off', why: '', lobby: null, ents: new Map(), gm: new Map(), sounds: null, music: null, keyOk: null, pending: new Map(), offs: [], fns: new Set(), tok: 0 };
   const rand = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => 'abcdefghijklmnopqrstuvwxyz0123456789'[b % 36]).join('');
   const sha = async s => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map(b => b.toString(16).padStart(2, '0')).join('');
   const emit = why => T.fns.forEach(f => { try { f(why); } catch (e) { console.error(e); } });
   const P = (...a) => `lobbies/${T.code}/` + a.join('/');
-  // a lobby code, or Critter's music code (lobby code and key) for cueing Critter Sounds too
+  // a lobby code, or Critter VTT's music code (lobby code and key) for cueing Critter Sounds too
   function parse(s) {
     const parts = String(s || '').toUpperCase().replace(/\b(LOBBY|KEY)\b/g, ' ').split(/[^A-Z0-9]+/).filter(Boolean);
     if (!parts.length) return { code: '', key: '' };
@@ -76,18 +76,18 @@ const TABLE = (() => {
   }
 
   /* ---------- writing to the table ---------- */
-  // a note in the GM's notebook in Critter, or a handout (shown to everyone at once with show: true)
+  // a note in the GM's notebook in Critter VTT, or a handout (shown to everyone at once with show: true)
   async function sendNote({ id, title, text, img, handout, show }) {
     need();
     const now = Date.now(), nid = id && T.gm.has(id) ? id : 'n' + rand(14);
     const old = T.gm.get(nid) || {};
     const pic = img ? (await jpeg(img, 1000, 390000)).url : '';
-    // Critter shows a handout's title, but not a note's, so a note starts with it; Critter credits it "from the GM's notes"
+    // Critter VTT shows a handout's title, but not a note's, so a note starts with it; Critter VTT credits it "from the GM's notes"
     const body = handout || !title ? String(text || '') : `### ${title}\n\n${text || ''}`;
     const doc = { owner: 'gm', kind: 'note', title: String(title || '').slice(0, 80), text: body.slice(0, 8000), img: pic, pos: old.pos || now, ts: old.ts || now, ets: now, from: { t: 'notes', n: 'the GM' }, dm: !!handout, rev: old.rev || [], src: '', pe: false };
     await T.db.doc(P('notes', nid)).set(doc);
     if (handout && show) {
-      // the same as Critter's "Show to everyone": a copy in each player's notes
+      // the same as Critter VTT's "Show to everyone": a copy in each player's notes
       const have = new Set(); const all = await T.db.collection(P('notes')).where('src', '==', nid).get();
       for (const c of all.docs) {
         const x = c.data() || {}; have.add(x.owner);
@@ -114,14 +114,14 @@ const TABLE = (() => {
     await T.db.doc(P('ents', eid)).set(doc);
     return eid;
   }
-  // a map as a new scene: hidden from the players until the GM reveals it in Critter
+  // a map as a new scene: hidden from the players until the GM reveals it in Critter VTT
   async function sendScene({ id, name, img }) {
     need();
     const pic = await jpeg(img, 2600, 12 * 200000 - 1000);
     const sid = id && scenes().some(s => s.id === id) ? id : 'nt' + rand(8), src = pic.url, chunks = [];
     for (let i = 0; i < src.length; i += 200000) chunks.push(src.slice(i, i + 200000));
     const list = scenes();
-    if (!list.some(s => s.id === sid) && list.length >= 24) throw new Error('The table already has 24 scenes, Critter\'s most. Remove one there first.');
+    if (!list.some(s => s.id === sid) && list.length >= 24) throw new Error('The table already has 24 scenes, Critter VTT\'s most. Remove one there first.');
     for (let i = 0; i < chunks.length; i++) await T.db.doc(P('scenebg', `${sid}_${i}`)).set({ d: chunks[i] });
     await T.db.doc(P('scenes', sid)).set({ bg: { mode: 'contain', size: 100, dim: 0, grid: false, x: 0, y: 0, w: pic.w, h: pic.h, v: rand(8), chunks: chunks.length }, n: chunks.length });
     const fresh = scenes(); const at = fresh.findIndex(s => s.id === sid);
@@ -132,8 +132,8 @@ const TABLE = (() => {
   // a cue for Critter Sounds: op 'play' or 'stop'; kind 'playlist' | 'pad' | 'scene' | 'scape' | 'all'
   async function cue(op, kind, ref, name) {
     need();
-    if (!T.key) throw new Error('Link the campaign with the music code (from Critter\'s Music window) to cue Critter Sounds.');
-    if (T.keyOk === false) throw new Error('That music key is out of date. Copy the music code from Critter\'s Music window again.');
+    if (!T.key) throw new Error('Link the campaign with the music code (from Critter VTT\'s Music window) to cue Critter Sounds.');
+    if (T.keyOk === false) throw new Error('That music key is out of date. Copy the music code from Critter VTT\'s Music window again.');
     const id = 'q' + rand(14), sig = await sha([T.key, id, op, kind, ref].join('|')), db = T.db;
     const done = new Promise(res => {
       const p = { done: ok => { clearTimeout(p.t); res(ok); }, seen: false };
@@ -144,7 +144,7 @@ const TABLE = (() => {
     return done;
   }
 
-  // a whisper from the GM to one player: Critter's lobbies/<code>/whispers/<id> { members, from, k, text, … }
+  // a whisper from the GM to one player: Critter VTT's lobbies/<code>/whispers/<id> { members, from, k, text, … }
   async function whisper(pid, text) {
     need();
     await T.db.doc(P('whispers', 'w' + rand(16))).set({ k: 'msg', text: String(text).slice(0, 2000), members: ['gm', pid], from: 'gm', uid: 'critter-notes', n: 'GM', c: '#10b39b', ts: Date.now() });

@@ -2,16 +2,16 @@
    Roles (A.camp.share.role):
    - 'gm': the campaign's own author. Turning sharing on uploads it.
    - 'writer': a co-writer (co-owner). Joins with an invite code: the lobby code and the writer key. Everything syncs both ways.
-   - 'player': joins with the lobby code and their Critter player. Sees only what the GM shares with them, without secrets,
-     and keeps their own notes, which are their notes in Critter too.
+   - 'player': joins with the lobby code and their Critter VTT player. Sees only what the GM shares with them, without secrets,
+     and keeps their own notes, which are their notes in Critter VTT too.
    On the Homebase, under the lobby:
      cnw/<doc id>    { iv, ct, ts, by } a document, sealed with AES-GCM under a key made from the writer key; or { deleted, ts, by }
      cnw/_camp       the campaign's own settings (name, game, calendar, clocks, groups), sealed the same way
      cniw/<file>     { n, iv } and cniw/<file>_<i> { d }: a picture, sealed, in pieces
      cnp/<doc id>    { title, type, body, fields, img, banner, map, to: 'all' | [player ids], ts } what players may read, in the clear
      cnip/<file>…    the pictures those use, in the clear
-   Players' own notes are Critter's: lobbies/<code>/notes/<id> with owner = their player id.
-   Anyone with the lobby code can reach a lobby's data (Critter works that way too); the writer key is what keeps the GM's
+   Players' own notes are Critter VTT's: lobbies/<code>/notes/<id> with owner = their player id.
+   Anyone with the lobby code can reach a lobby's data (Critter VTT works that way too); the writer key is what keeps the GM's
    own documents, secrets and all, unreadable to them. Last change wins, per document. */
 const SYNC = (() => {
   const S = { on: false, role: '', code: '', key: null, offs: [], pushT: new Map(), applying: false, queue: new Map(), tok: 0 };
@@ -94,7 +94,7 @@ const SYNC = (() => {
   }
   // the GM turns sharing on: everything goes up
   async function share() {
-    if (!TABLE.on()) { toast('Link the campaign to its Critter table first.'); return false; }
+    if (!TABLE.on()) { toast('Link the campaign to its Critter VTT table first.'); return false; }
     const wkey = Array.from(crypto.getRandomValues(new Uint8Array(10)), b => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('');
     A.camp.share = { on: true, role: 'gm', code: TABLE.T.code, wkey, sent: [], psent: [], got: [] }; await saveCamp();
     await start(); if (!S.on) return false;
@@ -211,7 +211,7 @@ const SYNC = (() => {
     const camp = (TABLE.T.lobby && TABLE.T.lobby.camp && TABLE.T.lobby.camp.title) || 'Table ' + code;
     const meta = { id: rid('c'), name: camp, sys: TABLE.sys(), table: code, share: { on: true, role: 'player', code, pid: p.id, pname: p.name, got: [] }, created: Date.now(), updated: Date.now() };
     await STORE.saveCampaign(meta); A.camps.unshift(meta); await openCampaign(meta.id);
-    toast(`Joined as ${p.name}. Your notes are your Critter notes; what the GM shares shows up here.`);
+    toast(`Joined as ${p.name}. Your notes are your Critter VTT notes; what the GM shares shows up here.`);
   }
 
   function paintRole() {

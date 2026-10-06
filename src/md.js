@@ -1,6 +1,6 @@
 /* Critter Notes' Markdown. Plain Markdown (Obsidian-flavoured) plus a few GM things:
      [[Title]] [[Title|label]] [[Title#Heading]]   links between documents
-     [[table:<id>|Name]]                          something in the linked Critter table's Library
+     [[table:<id>|Name]]                          something in the linked Critter VTT table's Library
      [[srd:<sys>/<kind>/<name>|Name]]             an SRD entry (item, monster, spell…)
      [[sound:<kind>/<id>|Name]]                   a Critter Sounds cue (playlist, pad, scene, soundscape)
      [[roll:1d20+5]]                              a dice button
@@ -113,7 +113,7 @@ const MD = (() => {
       .replace(/\n/g, '<br>');
     return raw.replace(/\u0000(\d+)\u0000/g, (a, n) => keep[+n]);
   }
-  // inline text without its markup: for titles in the mind map, search snippets and Critter
+  // inline text without its markup: for titles in the mind map, search snippets and Critter VTT
   function plainInline(s) {
     return String(s || '').replace(INLINE, (all, code, wiki, ialt, isrc, ltext, lurl, bare, pre, tag) => code !== undefined ? code : wiki !== undefined ? (linkInfo(wiki).label || linkInfo(wiki).title || linkInfo(wiki).ref) : isrc !== undefined ? '' : lurl !== undefined ? ltext : bare !== undefined ? bare : tag !== undefined ? pre + '#' + tag : all)
       .replace(/\*\*|__|~~|==/g, '').replace(/(^|\W)[*_](?=\S)|(?<=\S)[*_](?=\W|$)/g, '$1');
@@ -233,7 +233,7 @@ const MD = (() => {
     return L.join('\n');
   }
 
-  /* ---------- for Critter: its notes know headings, bold, italic, lists and quotes ---------- */
+  /* ---------- for Critter VTT: its notes know headings, bold, italic, lists and quotes ---------- */
   // secret callouts stay behind unless it's for the GM (gm: true); forPlayers drops clues, alternative paths and the like too
   function toCritter(src, ctx = {}) {
     const out = [];

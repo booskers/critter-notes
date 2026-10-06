@@ -17,16 +17,19 @@ function setupScreen(message) {
   const show = () => {
     document.getElementById('hbSetup')?.remove();
     const box = document.createElement('div'); box.id = 'hbSetup';
-    box.innerHTML = `<style>#hbSetup{position:fixed;inset:0;z-index:100000;display:grid;place-items:center;background:rgba(6,7,9,.86);font:15px/1.5 system-ui,sans-serif;color:#e8e2d6}
-#hbSetup .c{width:min(480px,calc(100vw - 32px));background:#14161b;border:1px solid #2a2d35;border-radius:10px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
-#hbSetup h2{margin:0 0 6px;font-size:20px}#hbSetup p{margin:6px 0 12px;color:#a9a39a}
-#hbSetup .opt{display:grid;gap:8px;margin:12px 0}#hbSetup label{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid #2a2d35;border-radius:8px;cursor:pointer}
-#hbSetup label:has(input:checked){border-color:#c9a45c;background:#1b1d22}#hbSetup label b{display:block}#hbSetup label small{color:#a9a39a}
-#hbSetup input[type=text]{width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border-radius:7px;border:1px solid #2a2d35;background:#0c0d10;color:#e8e2d6;font:inherit}
-#hbSetup .r{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}#hbSetup button{padding:9px 16px;border-radius:7px;border:1px solid #c9a45c;background:#c9a45c;color:#14161b;font:inherit;font-weight:700;cursor:pointer}
-#hbSetup .e{color:#e2574c;min-height:1.4em;margin:6px 0 0}</style>
+    // it wears the look of the app it opens in (the shared Critter design system's tokens), with Critter VTT's as the fallback
+    box.innerHTML = `<style>#hbSetup{position:fixed;inset:0;z-index:100000;display:grid;place-items:center;background:rgb(0 0 0/.5);backdrop-filter:blur(6px);font:15px/1.5 var(--font-ui,var(--f-body,system-ui,sans-serif));color:var(--ink,#ece8e0)}
+#hbSetup .c{width:min(480px,calc(100vw - 32px));background:var(--surface-3,var(--panel-3,#1e1f24));border:0;border-radius:18px;padding:22px;box-shadow:0 24px 60px -12px rgb(0 0 0/.72),0 2px 8px rgb(0 0 0/.35)}
+#hbSetup h2{margin:0 0 6px;font:750 20px/1.2 var(--font-display,var(--f-display,system-ui,sans-serif))}#hbSetup p{margin:6px 0 12px;color:var(--ink-2,var(--muted,#b5b0a8))}
+#hbSetup .opt{display:grid;gap:8px;margin:12px 0}#hbSetup label{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:0;border-radius:14px;background:color-mix(in srgb,currentColor 6%,transparent);cursor:pointer}
+#hbSetup label:has(input:checked){background:color-mix(in oklab,var(--accent,#ff5c00) 16%,transparent);box-shadow:inset 0 0 0 1.5px color-mix(in oklab,var(--accent,#ff5c00) 60%,transparent)}#hbSetup label b{display:block}#hbSetup label small{color:var(--ink-2,var(--muted,#b5b0a8))}
+#hbSetup input[type=radio]{accent-color:var(--accent,#ff5c00)}
+#hbSetup input[type=text]{width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border-radius:10px;border:0;background:rgb(0 0 0/.24);box-shadow:inset 0 0 0 1px color-mix(in srgb,currentColor 12%,transparent);color:inherit;font:inherit}
+#hbSetup .r{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}#hbSetup button{padding:9px 16px;border-radius:10px;border:0;background:var(--accent,#ff5c00);color:var(--on-accent,var(--accent-ink,#141006));font:inherit;font-weight:700;cursor:pointer;box-shadow:inset 0 1px 0 rgb(255 255 255/.22)}
+#hbSetup button:hover{box-shadow:0 8px 22px -8px var(--accent,#ff5c00),inset 0 1px 0 rgb(255 255 255/.22)}
+#hbSetup .e{color:var(--bad,#ff7b7b);min-height:1.4em;margin:6px 0 0}</style>
 <div class="c" role="dialog" aria-labelledby="hbT"><h2 id="hbT">Where do you play?</h2>
-<p>Critter shares tables through a Homebase. Everyone at the table needs to use the same one.</p>
+<p>Critter VTT shares tables through a Homebase. Everyone at the table needs to use the same one.</p>
 <div class="opt">
 ${BUILT_IN ? `<label><input type="radio" name="hbm" value="homebase"><span><b>Homebase</b><small>The shared Homebase this app was built with. Nothing to set up.</small></span></label>` : ''}
 <label><input type="radio" name="hbm" value="server"><span><b>Your own Homebase server</b><small>Someone at the table runs the Homebase server. Enter its address:</small><input type="text" id="hbUrl" placeholder="http://192.168.1.20:8787" spellcheck="false" autocomplete="off"></span></label>

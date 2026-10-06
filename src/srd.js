@@ -1,4 +1,4 @@
-/* Critter Notes: the SRD compendium Critter ships (srd/index.json and srd/<sys>-<kind>.json, copied in by build.mjs).
+/* Critter Notes: the SRD compendium Critter VTT ships (srd/index.json and srd/<sys>-<kind>.json, copied in by build.mjs).
    Entries look like { n: name, c: category, s: summary, d: sheet data, x: text }. Loaded one kind at a time. */
 const SRD = (() => {
   let idx = null; const files = new Map();
@@ -29,7 +29,7 @@ const SRD = (() => {
   }
   const refOf = x => `${x.sys}/${x.kind}/${x.n}`;
   const credit = async sys => ((await index()).systems[sys] || {}).credit || '';
-  // sheet data for Critter, the way Critter makes its own copy of an SRD entry
+  // sheet data for Critter VTT, the way Critter VTT makes its own copy of an SRD entry
   function data(x) {
     const d = JSON.parse(JSON.stringify(x.d || {}));
     d.name = x.n; d.source = 'SRD';

@@ -11,9 +11,9 @@
 </head>
 <body>
 <a href="#main" id="skip" class="skip">Skip to the page</a>
-<!-- the window's title bar: the window is frameless, so the page draws Critter's kind of bar itself -->
+<!-- the window's title bar: the window is frameless, so the page draws Critter VTT's kind of bar itself -->
 <div id="titlebar" role="banner">
-  <button type="button" class="wb-brand" id="appMenu" title="Critter Notes menu" aria-haspopup="menu"><img class="wb-logo" src="icon.svg" alt=""><span class="wb-name">Critter Notes</span><svg class="wb-caret" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  <button type="button" class="wb-brand" id="appMenu" title="Critter Notes menu" aria-label="Critter Notes menu" aria-haspopup="menu"><img class="wb-logo" src="icon.svg" alt=""><svg class="wb-caret" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
   <div class="wb-nav">
     <button type="button" id="sideToggle" title="Show or hide the sidebar" aria-label="Sidebar" aria-pressed="true"><svg class="ic" viewBox="0 0 24 24"><path d="M3 5a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z M9 4v16"/></svg></button>
     <button type="button" id="backBtn" title="Back (Alt+←)" aria-label="Back"><svg class="ic" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
@@ -41,7 +41,7 @@
     <div class="sfilter"><input id="sideFilter" type="search" placeholder="Filter by name or #tag" spellcheck="false" aria-label="Filter the documents by name or #tag"><button type="button" id="sideMode" class="ib"></button></div>
     <div id="tree"></div>
     <div class="sfoot">
-      <button type="button" id="tableChip" class="chip" aria-label="The Critter table"><span>No table linked</span></button>
+      <button type="button" id="tableChip" class="chip" aria-label="The Critter VTT table"><span>No table linked</span></button>
       <button type="button" id="soundChip" class="chip" hidden><span></span></button>
       <button type="button" id="roleChip" class="chip" hidden><span></span></button>
       <button type="button" id="gearBtn" class="ib" title="Settings" aria-label="Settings"><svg class="ic" viewBox="0 0 24 24"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
@@ -66,6 +66,7 @@
 <script src="plan.js"></script>
 <script src="editor.js"></script>
 <script src="sync.js"></script>
+<script src="fonts.js"></script>
 <script src="views.js"></script>
 <script src="app.js"></script>
 </body>

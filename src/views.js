@@ -13,13 +13,13 @@ const VIEWS = (() => {
     main.append(h('div', { class: 'hero' },
       h('img', { class: 'heroicon', src: 'icon.svg', alt: '' }),
       h('h1', { text: 'Critter Notes' }),
-      h('p', { class: 'lead', text: 'Plan sessions, write your world, draw maps, boards and mind maps, and bring it all to your Critter table.' }),
+      h('p', { class: 'lead', text: 'Plan sessions, write your world, draw maps, boards and mind maps, and bring it all to your Critter VTT table.' }),
       h('div', { class: 'wchoices' },
         choice('lore', 'Start my own campaign', 'You\'re the GM. It\'s kept on this computer, and you can share it with co-writers and players later.',
           h('div', { class: 'row center wrap' }, btn('plus', 'Start a campaign', () => newCampaign(), 'primary'), btn(null, 'Look at a sample first', () => sample(), 'ghost'))),
         choice('users', 'Write with someone', 'You help a GM write their campaign: you see and change everything. Ask them for the invite code (Settings › Sharing).',
           h('div', { class: 'row' }, invite, btn(null, 'Join', async () => { try { await SYNC.joinWriter(invite.value); } catch (e) { toast(errText(e)); } }, 'primary'))),
-        choice('character', 'Join as a player', 'You see what your GM shares with you, and keep your own notes. They\'re your notes in Critter too.',
+        choice('character', 'Join as a player', 'You see what your GM shares with you, and keep your own notes. They\'re your notes in Critter VTT too.',
           h('div', { class: 'row' }, lobby, btn(null, 'Next', () => pickPlayer(lobby.value), 'primary')))),
       h('div', { class: 'row center wrap' }, btn('upload', 'Restore a backup', () => restore(), 'ghost tiny')),
       h('p', { class: 'hint', text: STORE.kind === 'files' ? `Campaigns are kept as plain files in ${where.root}.` : 'Campaigns are kept in this browser.' })));
@@ -27,7 +27,7 @@ const VIEWS = (() => {
   async function pickPlayer(code) {
     code = String(code || '').trim().toUpperCase(); if (!code) { toast('Enter the lobby code your GM gave you.'); return; }
     let players; try { players = await SYNC.playersOf(code); } catch (e) { toast(errText(e)); return; }
-    if (!players.length) { toast('That table has no players set up yet. Your GM adds them in Critter (GM tools › Players).'); return; }
+    if (!players.length) { toast('That table has no players set up yet. Your GM adds them in Critter VTT (GM tools › Players).'); return; }
     let pick = null; const pw = h('input', { type: 'password', placeholder: 'Password', 'aria-label': 'Password', hidden: true });
     const list = h('div', { class: 'plist', role: 'radiogroup', 'aria-label': 'Which player are you?' }, ...players.map(p => h('label', { class: 'pchoice', style: `--c:${p.color || 'var(--accent)'}` }, h('input', { type: 'radio', name: 'pl', onchange: () => { pick = p; pw.hidden = !p.pw; if (p.pw) pw.focus(); } }), h('i'), h('span', { text: p.name }), p.pw ? h('small', { text: 'has a password' }) : null)));
     const m = modal('Who are you at the table?', h('div', { class: 'form' }, list, pw), [btn(null, 'Cancel', () => m.close(), 'ghost'), btn('check', 'Join', async () => { if (!pick) { toast('Pick your player.'); return; } try { await SYNC.joinPlayer(code, pick, pw.value); m.close(); } catch (e) { toast(errText(e)); } }, 'primary')]);
@@ -35,7 +35,8 @@ const VIEWS = (() => {
   function joinMenu(at) { menu([{ head: 'Join a campaign' }, { label: 'As a co-writer…', icon: 'users', fn: async () => { const c = await ask('The invite code from the GM', '', { placeholder: '4SV6DJ-ABCDEFGHJK', ok: 'Join' }); if (c) try { await SYNC.joinWriter(c); } catch (e) { toast(errText(e)); } } }, { label: 'As a player…', icon: 'character', fn: async () => { const c = await ask('The lobby code', '', { placeholder: '4SV6DJ', ok: 'Next' }); if (c) pickPlayer(c); } }], at); }
 
   /* ============================== settings, said plainly ============================== */
-  const ACCENTS = ['#10b39b', '#2dd4bf', '#38bdf8', '#6366f1', '#a855f7', '#e879f9', '#f43f5e', '#f97316', '#f5a524', '#84cc16'];
+  // Notes' own colours come first (its logo's yellow and ink); the rest are the other Critter apps' and a few more
+  const ACCENTS = ['#ffbd00', '#7a8cff', '#ff5c00', '#8800ff', '#f0a020', '#2ea8ff', '#14b8a6', '#e0568f', '#f43f5e', '#84cc16'];
   function settings(main) {
     main.className = 'pagemain';
     const P = A.prefs, c = A.camp, wrap = h('div', { class: 'setin' });
@@ -50,10 +51,19 @@ const VIEWS = (() => {
     wrap.append(h('div', { class: 'phead' }, h('div', {}, h('h1', { text: 'Settings', tabIndex: -1 }), h('p', { class: 'hint', text: 'Everything here saves as you change it.' }))));
     wrap.append(sec('Look',
       row('Theme', 'Dark for the table at night, light for writing in daylight.', pills(P.theme, [['dark', 'Dark'], ['light', 'Light'], ['system', 'Like Windows']], v => set('theme', v), 'Theme')),
-      row('Highlight colour', 'Buttons, links, the things you\'re on.', colours('accent', '#10b39b')),
-      row('Second colour', 'Clocks, the world\'s today, Run.', colours('accent2', '#f5a524')),
-      row('Reading text', 'How big documents read.', pills(P.readSize, [['s', 'Small'], ['m', 'Medium'], ['l', 'Large'], ['xl', 'Larger']], v => set('readSize', v), 'Reading text size')),
-      row('Reading font', '', pills(P.readFont, [['serif', 'Book'], ['sans', 'Plain']], v => set('readFont', v), 'Reading font'))));
+      row('Highlight colour', 'Buttons, links, the things you\'re on.', colours('accent', '#ffbd00')),
+      row('Second colour', 'Clocks, the world\'s today, Run.', colours('accent2', '#7a8cff')),
+      row('Surface tint', 'How much the highlight colour tints the background and panels.', h('input', { type: 'range', class: 'tint', min: 0, max: 14, step: 1, value: Number.isFinite(P.tint) ? P.tint : 4, 'aria-label': 'Surface tint', style: `--p:${(Number.isFinite(P.tint) ? P.tint : 4) / 14 * 100}%`, oninput: e => { e.target.style.setProperty('--p', e.target.value / 14 * 100 + '%'); set('tint', +e.target.value); } })),
+      row('Picture colour', 'How far a document\'s picture spills its colours into the page around it.', pills(Number.isFinite(P.bleed) ? P.bleed : 1, [[0, 'Off'], [0.6, 'Soft'], [1, 'Full']], v => set('bleed', v), 'Picture colour')),
+      row('Reading text', 'How big documents read.', pills(P.readSize, [['s', 'Small'], ['m', 'Medium'], ['l', 'Large'], ['xl', 'Larger']], v => set('readSize', v), 'Reading text size'))));
+    // fonts come in pairs: titles, the interface and reading text; Easy reading is every Critter app's base
+    const curFonts = P.fonts || 'Easy reading';
+    wrap.append(h('section', { class: 'setsec', 'aria-label': 'Fonts' }, h('h2', { text: 'Fonts' }),
+      h('div', { class: 'fontsets', role: 'radiogroup', 'aria-label': 'Fonts' }, ...FONT_SETS.map(([n, d, u, r]) => {
+        const b = h('button', { type: 'button', role: 'radio', 'aria-checked': String(curFonts === n), class: 'fontset' + (curFonts === n ? ' on' : ''), onclick: () => { set('fonts', n === 'Easy reading' ? '' : n); renderMain(); } },
+          h('small', { text: n + (n === 'Easy reading' ? ' · base' : '') }), h('b', { text: 'The dragon rolls a 20' }), h('span', { text: d === u ? `${d}` : `${d} titles, ${u}` }));
+        applyFontSet(b, n); return b;
+      }))));
     wrap.append(sec('Writing',
       row('Suggest links while I write', 'When you type the name of another document, a small bubble offers to link it.', sw(P.suggest !== false, v => set('suggest', v), 'Suggest links')),
       row('Lock documents when I leave them', 'A locked document can still be read, ticked and sent, but not changed by accident. The lock above a document opens it again.', sw(!!P.autoLock, v => set('autoLock', v), 'Lock documents when I leave them')),
@@ -72,13 +82,13 @@ const VIEWS = (() => {
     }
     // the table and sharing
     if (c) {
-      const T = TABLE.T, code = h('input', { type: 'text', class: 'code', value: c.table || '', placeholder: 'Lobby code or music code', 'aria-label': 'Critter table code', disabled: !!(c.share && c.share.on) });
-      const tableRows = [row('Critter table', T.state === 'on' ? `Linked to ${T.code} · ${SRD.SYSTEMS[TABLE.sys()] || TABLE.sys()} · ${plural(TABLE.players().length, 'player')}` : T.why || 'The lobby code links Notes to the table. The music code (from Critter\'s Music window) also lets Notes cue Critter Sounds.',
+      const T = TABLE.T, code = h('input', { type: 'text', class: 'code', value: c.table || '', placeholder: 'Lobby code or music code', 'aria-label': 'Critter VTT table code', disabled: !!(c.share && c.share.on) });
+      const tableRows = [row('Critter VTT table', T.state === 'on' ? `Linked to ${T.code} · ${SRD.SYSTEMS[TABLE.sys()] || TABLE.sys()} · ${plural(TABLE.players().length, 'player')}` : T.why || 'The lobby code links Notes to the table. The music code (from Critter VTT\'s Music window) also lets Notes cue Critter Sounds.',
         code, btn(null, T.state === 'on' && code.value === c.table ? 'Linked' : 'Link', async () => { c.table = code.value.trim(); await saveCamp(); if (c.table) await TABLE.connect(c.table); else TABLE.disconnect(); renderMain(); }, 'tiny' + (T.state === 'on' ? '' : ' primary')))];
       if (window.CRITBOARD_DESKTOP) tableRows.push(row('Homebase', window.CRITBOARD_DESKTOP.server || 'Not chosen', btn(null, 'Change…', () => window.CRITBOARD_DESKTOP.changeHomebase(), 'tiny ghost')));
       wrap.append(sec('The table', ...tableRows));
       const sh = c.share || {}, shareRows = [];
-      if (SYNC.isPlayer()) shareRows.push(row(`You're ${sh.pname} at table ${sh.code}`, 'What the GM shares with you shows here, read only. Your notes are your notes in Critter.', btn(null, 'Leave the campaign', () => leave(), 'tiny ghost bad')));
+      if (SYNC.isPlayer()) shareRows.push(row(`You're ${sh.pname} at table ${sh.code}`, 'What the GM shares with you shows here, read only. Your notes are your notes in Critter VTT.', btn(null, 'Leave the campaign', () => leave(), 'tiny ghost bad')));
       else if (sh.on && sh.role === 'writer') shareRows.push(row('You write this campaign with its GM', `Table ${sh.code}. Everything you change reaches the GM and the other co-writers.`, btn(null, 'Leave', () => leave(), 'tiny ghost bad')));
       else if (sh.on) {
         const inv = h('code', { class: 'invite blur', text: SYNC.inviteCode(), tabIndex: 0, title: 'Click to show it', onclick: e => e.currentTarget.classList.remove('blur') });
@@ -86,7 +96,7 @@ const VIEWS = (() => {
           row('Invite a co-writer', 'Give them this code. It also unlocks your secrets, so share it like a key.', inv, btn('copy', 'Copy', () => navigator.clipboard.writeText(SYNC.inviteCode()).then(() => toast('Copied the invite code.')), 'tiny')),
           row('Players', `They join with the lobby code ${sh.code} and pick their player.`),
           row('Stop sharing', 'Co-writers and players stop getting changes.', btn(null, 'Stop', async () => { await SYNC.unshare(false); renderMain(); }, 'tiny ghost'), btn(null, 'Stop and remove it from the table', async () => { if (await confirmBox('Remove it from the table?', 'The shared copy on the Homebase is deleted. Your own copy stays on this computer.', 'Remove it', true)) { await SYNC.unshare(true); renderMain(); } }, 'tiny ghost bad')));
-      } else shareRows.push(row('Write it together', TABLE.on() ? 'Share this campaign with co-writers (they see and change everything) and with players (they see what you open to them).' : 'Link the campaign to its Critter table first; sharing goes through the table.', btn('users', 'Share this campaign', async () => { if (await SYNC.share()) renderMain(); }, 'tiny primary')));
+      } else shareRows.push(row('Write it together', TABLE.on() ? 'Share this campaign with co-writers (they see and change everything) and with players (they see what you open to them).' : 'Link the campaign to its Critter VTT table first; sharing goes through the table.', btn('users', 'Share this campaign', async () => { if (await SYNC.share()) renderMain(); }, 'tiny primary')));
       wrap.append(sec('Sharing', ...shareRows));
     }
     wrap.append(sec('Files',
@@ -152,7 +162,7 @@ const VIEWS = (() => {
       h('li', { html: '<b>[[</b> links a document, a table entry, an SRD item or monster, or a Critter Sounds cue.' }),
       h('li', { html: '<b>/</b> at the start of a line adds a block: an alternative path, read-aloud text, a secret, an encounter, a random table…' }),
       h('li', { html: '<b>Mind map</b> (Ctrl+M) draws a document as branches; adding a branch writes it into the text.' }),
-      h('li', { html: '<b>Send to table</b> puts a document in your Critter notebook, hands it out, or adds an NPC, item or map scene.' }),
+      h('li', { html: '<b>Send to table</b> puts a document in your Critter VTT notebook, hands it out, or adds an NPC, item or map scene.' }),
       h('li', { html: '<b>Ctrl+K</b> finds anything. <b>Ctrl+.</b> hides everything but the page. <b>F1</b> lists every shortcut.' }))));
     main.append(wrap);
   }
@@ -162,7 +172,7 @@ const VIEWS = (() => {
     const cols = h('div', { class: 'hcols' }), l = h('div', { class: 'hcol' }), r = h('div', { class: 'hcol' }); cols.append(l, r); wrap.append(cols);
     const list = (docs, empty) => { const x = h('div', { class: 'list' }); docs.slice(0, 14).forEach(d => x.append(docRow(d, d.dm ? 'from the GM' : ago(d.updated)))); return docs.length ? x : h('p', { class: 'hint', text: empty }); };
     l.append(card('Shared with you', list(shared, 'Nothing yet. When your GM opens a document to you, it shows here.')));
-    r.append(card('Your notes', list(mine, 'Your Critter notes show here. Write one with New note.')));
+    r.append(card('Your notes', list(mine, 'Your Critter VTT notes show here. Write one with New note.')));
     main.append(wrap);
   }
   const card = (title, body) => h('section', { class: 'hcard' }, h('h2', { text: title }), body);
@@ -237,8 +247,8 @@ const VIEWS = (() => {
       const go2 = async () => { A.camp.table = inp.value.trim(); await saveCamp(); if (await TABLE.connect(A.camp.table)) toast('Linked to table ' + TABLE.T.code + '.'); };
       inp.addEventListener('keydown', e => { if (e.key === 'Enter') go2(); });
       body.append(h('div', { class: 'linkbox' },
-        h('b', { text: 'Link this campaign to its Critter table' }),
-        h('p', { class: 'hint', text: 'Enter the lobby code to send notes, handouts, NPCs, items and maps to the table, and to take its Library, scenes and chat into your notes. With the music code from Critter\'s Music window instead, Notes can also cue Critter Sounds.' }),
+        h('b', { text: 'Link this campaign to its Critter VTT table' }),
+        h('p', { class: 'hint', text: 'Enter the lobby code to send notes, handouts, NPCs, items and maps to the table, and to take its Library, scenes and chat into your notes. With the music code from Critter VTT\'s Music window instead, Notes can also cue Critter Sounds.' }),
         h('div', { class: 'row' }, inp, btn(null, T.state === 'connecting' ? 'Linking…' : 'Link', go2, 'primary')),
         T.why ? h('p', { class: 'hint bad', text: T.why }) : null,
         window.CRITBOARD_DESKTOP ? h('p', { class: 'hint', text: `Homebase: ${window.CRITBOARD_DESKTOP.mode === 'offline' ? 'offline' : window.CRITBOARD_DESKTOP.server || 'not chosen'}` }) : null));
@@ -272,10 +282,10 @@ const VIEWS = (() => {
     // players
     body.append(sec(`Players (${pl.length})`, pl.length ? btn(null, 'Make documents', () => playersToDocs(), 'tiny ghost') : null),
       pl.length ? h('div', { class: 'chips' }, ...pl.map(p => { const x = resolve(p.name); return h('button', { type: 'button', class: 'mchip', style: `--c:${p.color || '#888'}`, onclick: () => x ? openDoc(x) : playersToDocs([p]) }, h('span', { text: p.name })); })) : h('p', { class: 'hint', text: 'No players set up at the table yet.' }));
-    // the GM's notebook in Critter
+    // the GM's notebook in Critter VTT
     const gm = [...T.gm.values()].filter(n => n.kind !== 'head').sort((a, b) => (b.ts || 0) - (a.ts || 0));
-    body.append(sec(`Your Critter notebook (${gm.length})`), h('div', { class: 'list' }, ...gm.slice(0, 30).map(n => h('div', { class: 'lrow' }, h('span', { class: 'li', html: icon(n.dm ? 'send' : 'note') }), h('span', { class: 'lt', text: n.title || String(n.text || '').split('\n')[0].slice(0, 50) || 'Untitled' }), h('span', { class: 'ls', text: n.dm ? (n.rev === 'all' ? 'shown' : 'handout') : '' }),
-      ib('download', 'Copy it into Notes', () => { const x = newDoc({ type: 'note', title: n.title || 'From Critter', body: String(n.text || '') }); openDoc(x.id); })))));
+    body.append(sec(`Your Critter VTT notebook (${gm.length})`), h('div', { class: 'list' }, ...gm.slice(0, 30).map(n => h('div', { class: 'lrow' }, h('span', { class: 'li', html: icon(n.dm ? 'send' : 'note') }), h('span', { class: 'lt', text: n.title || String(n.text || '').split('\n')[0].slice(0, 50) || 'Untitled' }), h('span', { class: 'ls', text: n.dm ? (n.rev === 'all' ? 'shown' : 'handout') : '' }),
+      ib('download', 'Copy it into Notes', () => { const x = newDoc({ type: 'note', title: n.title || 'From Critter VTT', body: String(n.text || '') }); openDoc(x.id); })))));
     if (d && d.type === 'session') body.append(sec('This session'), h('div', { class: 'row' }, btn('log', 'Add the table\'s chat', () => pullChat(d), 'tiny')));
   }
   function insertInto(d, text) {
@@ -288,8 +298,8 @@ const VIEWS = (() => {
     const T = TABLE.T, sc = T.sounds;
     body.append(h('p', { class: 'hint', text: 'Critter Sounds plays to the table. Connected to the same table, it tells Notes what it can play, and Notes can cue it from here or from a [[sound:…]] link in your plans.' }));
     if (T.state !== 'on') { body.append(h('p', { class: 'hint bad', text: 'Link this campaign to its table first (the Table tab).' })); return; }
-    if (!T.key) body.append(h('p', { class: 'hint warn', text: 'To cue sounds, link with the music code (from Critter\'s Music window) instead of the lobby code.' }));
-    else if (T.keyOk === false) body.append(h('p', { class: 'hint warn', text: 'The music key is out of date. Copy the music code from Critter\'s Music window again and link with it.' }));
+    if (!T.key) body.append(h('p', { class: 'hint warn', text: 'To cue sounds, link with the music code (from Critter VTT\'s Music window) instead of the lobby code.' }));
+    else if (T.keyOk === false) body.append(h('p', { class: 'hint warn', text: 'The music key is out of date. Copy the music code from Critter VTT\'s Music window again and link with it.' }));
     if (!sc) { body.append(h('p', { class: 'hint', text: 'Critter Sounds hasn\'t connected to this table yet. Open it and connect it with the music code; its scenes, playlists, pads and soundscapes appear here.' })); return; }
     body.append(h('div', { class: 'row' }, h('span', { class: 'hint grow', text: `${sc.n || 'Critter Sounds'} · seen ${ago(+sc.ts || 0)}` }), btn('stop', 'Stop music', () => playCue('all/', 'everything', null, 'stop'), 'tiny ghost'), btn('stop', 'Stop pads', () => playCue('pads/', 'the pads', null, 'stop'), 'tiny ghost')));
     const d = A.view.k === 'doc' && D(A.view.id);
@@ -320,10 +330,10 @@ const VIEWS = (() => {
 
   /* ============================== to the table ============================== */
   function sendMenu(d, at) {
-    if (!TABLE.on()) { menu([{ head: 'Not linked to a table' }, { label: 'Link this campaign to its table…', icon: 'table', fn: () => { A.prefs.right = true; A.prefs.rightTab = 'table'; savePrefs(); renderRight(); } }, { label: 'Copy the text for Critter', icon: 'copy', fn: () => copyForCritter(d) }], at); return; }
+    if (!TABLE.on()) { menu([{ head: 'Not linked to a table' }, { label: 'Link this campaign to its table…', icon: 'table', fn: () => { A.prefs.right = true; A.prefs.rightTab = 'table'; savePrefs(); renderRight(); } }, { label: 'Copy the text for Critter VTT', icon: 'copy', fn: () => copyForCritter(d) }], at); return; }
     const s = ((d.sent || {})[TABLE.T.code]) || {}, has = (k, map) => s[k] && map.has(s[k]);
     const items = [{ head: 'Send to table ' + TABLE.T.code },
-      { label: has('note', TABLE.T.gm) ? 'Update it in my Critter notebook' : 'To my Critter notebook', sub: 'For your eyes, secrets and all', icon: 'note', fn: () => send(d, 'note') },
+      { label: has('note', TABLE.T.gm) ? 'Update it in my Critter VTT notebook' : 'To my Critter VTT notebook', sub: 'For your eyes, secrets and all', icon: 'note', fn: () => send(d, 'note') },
       { label: has('handout', TABLE.T.gm) ? 'Update the handout' : 'As a handout, to show later', sub: 'Without secrets, clues or alternative paths', icon: 'send', fn: () => send(d, 'handout') },
       { label: 'To everyone\'s notes', sub: 'A handout every player gets now', icon: 'eye', fn: () => send(d, 'show') },
       ...TABLE.players().map(p => ({ label: 'Whisper it to ' + p.name, sub: 'Only their notes', icon: 'character', fn: () => send(d, 'whisper', false, p.id) })),
@@ -331,9 +341,9 @@ const VIEWS = (() => {
 
 ${critterText(d, true)}`) },
       { label: d.live ? 'Stop keeping it shown' : 'Keep it shown, and up to date', sub: 'The players\' copy follows your changes', icon: 'refresh', check: !!d.live, fn: () => { d.live = !d.live; touch(d, true); if (d.live) send(d, 'show'); render(); } }];
-    if (TABLE_KIND[d.type]) items.push({ label: (has('ent', TABLE.T.ents) || (d.table && d.table.lobby === TABLE.T.code && TABLE.T.ents.has(d.table.ent)) ? 'Update the ' : 'As an ') + (d.type === 'character' ? 'NPC' : 'item') + ' in the Library', sub: d.sheet ? 'With its game stats' : 'Its stats are added in Critter', icon: d.type === 'character' ? 'character' : 'item', fn: () => send(d, 'ent') });
-    if (d.type === 'map') items.push({ label: s.scene && TABLE.scenes().some(x => x.id === s.scene) ? 'Update its scene' : 'As a new scene', sub: 'Hidden until you reveal it in Critter', icon: 'map', disabled: !(d.map && d.map.img), fn: () => send(d, 'scene') });
-    items.push('-', { label: 'Copy the text for Critter', icon: 'copy', fn: () => copyForCritter(d) });
+    if (TABLE_KIND[d.type]) items.push({ label: (has('ent', TABLE.T.ents) || (d.table && d.table.lobby === TABLE.T.code && TABLE.T.ents.has(d.table.ent)) ? 'Update the ' : 'As an ') + (d.type === 'character' ? 'NPC' : 'item') + ' in the Library', sub: d.sheet ? 'With its game stats' : 'Its stats are added in Critter VTT', icon: d.type === 'character' ? 'character' : 'item', fn: () => send(d, 'ent') });
+    if (d.type === 'map') items.push({ label: s.scene && TABLE.scenes().some(x => x.id === s.scene) ? 'Update its scene' : 'As a new scene', sub: 'Hidden until you reveal it in Critter VTT', icon: 'map', disabled: !(d.map && d.map.img), fn: () => send(d, 'scene') });
+    items.push('-', { label: 'Copy the text for Critter VTT', icon: 'copy', fn: () => copyForCritter(d) });
     menu(items, at);
   }
   function critterText(d, players) {
@@ -342,7 +352,7 @@ ${critterText(d, true)}`) },
     const pins = d.map && (d.map.pins || []).length ? '\n\n' + d.map.pins.map(p => `- ${p.label || (D(p.doc) || {}).title || 'Pin'}`).join('\n') : '';
     return ((f ? f + '\n\n' : '') + body + pins).trim();
   }
-  function copyForCritter(d) { navigator.clipboard.writeText(critterText(d, false)).then(() => toast('Copied. Paste it into a note in Critter.'), () => toast('Couldn\'t copy.')); }
+  function copyForCritter(d) { navigator.clipboard.writeText(critterText(d, false)).then(() => toast('Copied. Paste it into a note in Critter VTT.'), () => toast('Couldn\'t copy.')); }
   async function picUrl(d) { const f = d.img || (d.map && d.map.img) || MD.firstImage(d.body).replace(/^img:/, ''); return f && !/^https?:/.test(f) ? STORE.imageUrl(cid(), f) : ''; }
   // words to the table: the chat, or a whisper to one player
   async function say(md, pid) {
@@ -357,14 +367,14 @@ ${critterText(d, true)}`) },
     const say = toast; if (quiet) toast = () => {};
     try {
       toast('Sending…');
-      if (what === 'note') { s.note = await TABLE.sendNote({ id: s.note, title: d.title, text: critterText(d, false), img: await picUrl(d) }); toast('It\'s in your notebook in Critter.'); }
+      if (what === 'note') { s.note = await TABLE.sendNote({ id: s.note, title: d.title, text: critterText(d, false), img: await picUrl(d) }); toast('It\'s in your notebook in Critter VTT.'); }
       else if (what === 'whisper') {
         // a handout for one player: it goes into their notes only, and a whisper tells them so
         s.handout = await TABLE.sendNote({ id: s.handout, title: d.title, text: critterText(d, true), img: await picUrl(d), handout: true, show: [pid] });
         await TABLE.whisper(pid, `📜 I gave you a note: **${d.title}**. It's in your notes.`);
         toast('Whispered to ' + ((TABLE.players().find(p => p.id === pid) || {}).name || 'them') + '. It\'s in their notes.');
       }
-      else if (what === 'handout' || what === 'show') { s.handout = await TABLE.sendNote({ id: s.handout, title: d.title, text: critterText(d, true), img: await picUrl(d), handout: true, show: what === 'show' }); toast(what === 'show' ? 'Shown to everyone. It\'s in their notes.' : 'The handout is ready in your Critter notebook. Show it from there when the time comes.'); }
+      else if (what === 'handout' || what === 'show') { s.handout = await TABLE.sendNote({ id: s.handout, title: d.title, text: critterText(d, true), img: await picUrl(d), handout: true, show: what === 'show' }); toast(what === 'show' ? 'Shown to everyone. It\'s in their notes.' : 'The handout is ready in your Critter VTT notebook. Show it from there when the time comes.'); }
       else if (what === 'ent') {
         const kind = TABLE_KIND[d.type], sys = TABLE.sys(), text = critterText(d, false);
         const data = { ...(d.sheet || {}) }, tf = kind === 'item' && sys === 'daggerheart' ? 'feature' : 'notes';
@@ -464,7 +474,7 @@ ${critterText(d, true)}`) },
     const name = h('input', { type: 'text', placeholder: 'The Lantern Road', autofocus: true }), sys = sysSelect('dnd5e'), code = h('input', { type: 'text', placeholder: 'Optional: lobby code or music code', class: 'code' });
     const go2 = async () => { if (!name.value.trim()) { name.focus(); return; } m.close(); await createCampaign({ name: name.value.trim(), sys: sys.value, table: code.value.trim() }); };
     name.addEventListener('keydown', e => { if (e.key === 'Enter') go2(); });
-    const m = modal('New campaign', h('div', { class: 'form' }, h('label', {}, 'Name', name), h('label', {}, 'Game', sys), h('label', {}, 'Critter table', code), h('p', { class: 'hint', text: 'The game decides which SRD items, monsters and spells [[ suggests. Linked to a table, the table\'s game counts.' })), [btn(null, 'Cancel', () => m.close(), 'ghost'), btn('plus', 'Create', go2, 'primary')]);
+    const m = modal('New campaign', h('div', { class: 'form' }, h('label', {}, 'Name', name), h('label', {}, 'Game', sys), h('label', {}, 'Critter VTT table', code), h('p', { class: 'hint', text: 'The game decides which SRD items, monsters and spells [[ suggests. Linked to a table, the table\'s game counts.' })), [btn(null, 'Cancel', () => m.close(), 'ghost'), btn('plus', 'Create', go2, 'primary')]);
   }
   function campaignSettings() { go({ k: 'settings' }); }
   async function campaignSettingsOld() {
@@ -484,7 +494,7 @@ ${critterText(d, true)}`) },
     };
     const m = modal('Campaign settings', h('div', { class: 'form' },
       h('label', {}, 'Name', name), h('label', {}, 'Game', sys), h('label', {}, 'Colour', sw),
-      h('label', {}, 'Critter table', code), h('p', { class: 'hint', text: 'The lobby code links Notes to the table. Critter\'s music code (lobby code and key, from its Music window) also lets Notes cue Critter Sounds.' }),
+      h('label', {}, 'Critter VTT table', code), h('p', { class: 'hint', text: 'The lobby code links Notes to the table. Critter VTT\'s music code (lobby code and key, from its Music window) also lets Notes cue Critter Sounds.' }),
       h('label', {}, 'Shared world', world), h('p', { class: 'hint', text: 'Another campaign whose documents this one can link to and read: a setting you run several campaigns in. They stay read-only here.' }),
       h('div', { class: 'row' }, btn('timeline', 'The world\'s calendar…', () => { m.close(); PLAN.calendarDialog(); }, 'tiny')),
       h('div', { class: 'sep' }),
@@ -592,7 +602,7 @@ ${critterText(d, true)}`) },
   }
   async function about() {
     const ix = await SRD.index(); const credits = Object.entries(ix.systems || {}).map(([k, v]) => h('p', { class: 'hint', text: `${SRD.SYSTEMS[k] || k}: ${v.credit || ''}` }));
-    modal('About Critter Notes', h('div', {}, h('p', { text: 'Critter Notes 1.0: a notebook for game masters, made to work with Critter and Critter Sounds.' }), h('h4', { text: 'SRD content' }), ...credits), null, { wide: true });
+    modal('About Critter Notes', h('div', {}, h('p', { text: 'Critter Notes 1.0: a notebook for game masters, made to work with Critter VTT and Critter Sounds.' }), h('h4', { text: 'SRD content' }), ...credits), null, { wide: true });
   }
 
   /* ============================== the sample campaign ============================== */

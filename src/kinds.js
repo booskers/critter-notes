@@ -209,5 +209,5 @@ What it looks like.
 `,
   event: 'What happened, and what it changed.\n', lore: '', map: '', note: '', board: ''
 };
-// what a document sent to the table becomes in Critter's Library
+// what a document sent to the table becomes in Critter VTT's Library
 const TABLE_KIND = { character: 'npc', item: 'item' };
