@@ -11,7 +11,7 @@ const VIEWS = (() => {
     const invite = h('input', { type: 'text', class: 'code', placeholder: '4SV6DJ-ABCDEFGHJK', 'aria-label': 'Invite code from the GM' });
     const lobby = h('input', { type: 'text', class: 'code', placeholder: '4SV6DJ', 'aria-label': 'Lobby code' });
     main.append(h('div', { class: 'hero' },
-      h('img', { class: 'heroicon', src: 'icon.svg', alt: '' }),
+      h('span', { class: 'heroicon logomark', role: 'img', 'aria-label': 'Critter Notes' }),
       h('h1', { text: 'Critter Notes' }),
       h('p', { class: 'lead', text: 'Plan sessions, write your world, draw maps, boards and mind maps, and bring it all to your Critter VTT table.' }),
       h('div', { class: 'wchoices' },

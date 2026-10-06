@@ -890,5 +890,7 @@ input[type=range].tint{-webkit-appearance:none;appearance:none;background:transp
 input[type=range].tint::-webkit-slider-runnable-track{height:4px;border-radius:99px;background:linear-gradient(90deg,var(--accent),color-mix(in oklab,var(--accent),var(--accent-2) 60%) var(--p),var(--press) var(--p))}
 input[type=range].tint::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;margin-top:-5px;border-radius:50%;background:#fff;box-shadow:0 0 0 3px var(--accent);transition:box-shadow var(--dur)}
 input[type=range].tint:hover::-webkit-slider-thumb{box-shadow:0 0 0 3px var(--accent),0 0 12px var(--accent)}
-/* the mark in the title bar and on the welcome screen: deeper yellow on light backgrounds */
-:root[data-theme=light] .wb-logo,:root[data-theme=light] .heroicon{content:url(icon-light.svg)}
+/* the mark in the title bar and on the welcome screen takes the highlight colour you chose (deeper on light backgrounds) */
+.logomark{display:block;background:var(--logo-ink,var(--accent));-webkit-mask:url(icon.svg) center/contain no-repeat;mask:url(icon.svg) center/contain no-repeat}
+:root[data-theme=light] .logomark{--logo-ink:color-mix(in oklab,var(--accent) 72%,black)}
+.heroicon.logomark{margin:0 auto}

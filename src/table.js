@@ -144,15 +144,16 @@ const TABLE = (() => {
     return done;
   }
 
+  const myColour = () => { const c = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(); return /^#[0-9a-f]{6}$/i.test(c) ? c : '#ffbd00'; };
   // a whisper from the GM to one player: Critter VTT's lobbies/<code>/whispers/<id> { members, from, k, text, … }
   async function whisper(pid, text) {
     need();
-    await T.db.doc(P('whispers', 'w' + rand(16))).set({ k: 'msg', text: String(text).slice(0, 2000), members: ['gm', pid], from: 'gm', uid: 'critter-notes', n: 'GM', c: '#10b39b', ts: Date.now() });
+    await T.db.doc(P('whispers', 'w' + rand(16))).set({ k: 'msg', text: String(text).slice(0, 2000), members: ['gm', pid], from: 'gm', uid: 'critter-notes', n: 'GM', c: myColour(), ts: Date.now() });
   }
   // a line in the table's chat, as the GM (from a random table, say)
   async function say(text) {
     need();
-    await T.db.doc(P('log', 'n' + rand(16))).set({ k: 'msg', text: String(text).slice(0, 2000), uid: 'critter-notes', n: 'GM', c: '#10b39b', ts: Date.now(), from: { t: 'notes', n: 'the GM' } });
+    await T.db.doc(P('log', 'n' + rand(16))).set({ k: 'msg', text: String(text).slice(0, 2000), uid: 'critter-notes', n: 'GM', c: myColour(), ts: Date.now(), from: { t: 'notes', n: 'the GM' } });
   }
 
   /* ---------- reading from the table ---------- */

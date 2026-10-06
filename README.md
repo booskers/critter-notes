@@ -10,7 +10,7 @@ This repository is private. © Polychrome, all rights reserved.
 ```
 npm install
 npm start          # builds www/ and opens the app
-npm run dist       # dist/Critter Notes Setup 1.0.0.exe (unsigned)
+npm run dist       # dist/Critter-Notes-Setup.exe (unsigned)
 npm run icons      # remakes the icons from logo-src/critter-logo.svg (Electron draws them)
 ```
 
