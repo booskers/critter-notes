@@ -24,11 +24,12 @@ Test settings: `CBN_VAULT=<folder>` keeps campaigns elsewhere, `CBN_USERDATA=<fo
 
 ## The layout
 
-- **Sidebar:** the campaign, Find (Ctrl+K) and New, then the campaign's views (Home, Timeline, Threads, Relationships, Graph), then the documents, grouped by kind or as a tree you arrange. Table and Sounds status sit at the bottom.
-- **The page:** a document's title, its folded-away **Details** (fields, picture, relationships), then the writing. The bar above holds only Read/Write, the mind map, Send to table, and More.
-- **Side panel** (documents only): the outline and backlinks, the linked table, Critter Sounds.
-- **Focus** (Ctrl+. or the corner button) hides everything but the page.
-- **Appearance:** dark, light or as Windows is set; reading text size and font; the writing toolbar on or off.
+- **Sidebar:** the campaign, Find (Ctrl+K) and New, the campaign's views (Home, Timeline, Threads, Relationships, Graph), then the documents: by kind (characters in your own groups, or grouped by role, faction…; drag them in and out) or as a tree you arrange. Table, Sounds and your role sit at the bottom, with the Settings gear.
+- **A document:** an optional banner (offered when you hover the top), its picture big at the top left with its colours bleeding outwards and the title beside it, folded **Details** (fields, relationships, who may read it), then the writing. The bar holds only the lock, the mind map, Send to table and More.
+- **Boards and maps** fill the whole middle; their details and notes open in a drawer.
+- **Side panel** (documents only): outline and backlinks, the table, Critter Sounds.
+- **Focus** (Ctrl+.) hides everything but the page. **Settings** (the gear) has the look (theme, your own colours, reading size and font), writing, the campaign, the table, sharing and files.
+- **Dragging empty space** always moves the view, the way it can move: documents and pages up and down, the timeline sideways, boards, maps, mind maps and the graph every way.
 
 ## Where campaigns live
 
@@ -42,39 +43,52 @@ Deleted documents and campaigns go to the Windows recycle bin. **Export as Markd
 
 ## Writing
 
-| Write | Get |
-| --- | --- |
-| `[[Title]]`, `[[Title\|words]]`, `[[Title#Heading]]` | a link to a document (renames update every link) |
-| `[[table:<id>\|Name]]` | an entry in the linked table's Library |
-| `[[srd:dnd5e/npc/Zombie\|Zombies]]` | an SRD entry, with a card and "add to the table" |
-| `[[sound:pad/<id>\|Thunder]]` | a button that plays it on Critter Sounds |
-| `[[roll:2d6+3]]` | a dice button |
-| `> [!branch] If they…` | an alternative path (also `read`, `secret`, `clue`, `combat`, `loot`, `scene`, `question`…) |
-| `- [ ] clue` | a box to tick; unfound secrets and clues come along to the next session |
-| a table headed `\| d6 \| … \|` | a random table with a Roll button; the result can go to the table's chat |
+Documents are written as they look; Markdown is only how they're kept and exported.
+- **The lock** above a document: unlocked, you write anywhere; locked, nothing changes by accident, but boxes tick, dice roll and anything can be sent (Ctrl+E switches).
+- **Select text** for bold, italic, highlight, a link (Ctrl+K), or **Make it…** an encounter, an alternative path, read-aloud text, a secret, a clue, treasure, a heading, a checklist.
+- **The + beside your line** adds anything: into the line (a link, dice, a sound cue) or as the next section (boxes, encounter builder, tables, random tables, pictures). **/** on an empty line does the same; **[[** links as you type.
+- **Sections** (each paragraph, list, box or table) can be dragged by the handle beside them; the handle's menu moves, turns into, duplicates, sends or removes one.
+- **Right-click:** link or unlink, make it something, send the selection or the section to the table chat, or whisper it to a player.
+- **Link suggestions:** typing the name of another document offers a small bubble to link it; ✕ dismisses it for that name in that document.
+- Markdown habits work too: `## `, `- `, `[] `, `> `, `---`.
 
-`[[` and `/` (at the start of a line) open pickers while writing. Ctrl+Shift+E opens the encounter builder.
+| Kept as | Shows as |
+| --- | --- |
+| `[[Title]]`, `[[Title|words]]` | a link to a document (renames update every link) |
+| `[[table:<id>|Name]]`, `[[srd:dnd5e/npc/Zombie|Zombies]]` | a table Library entry, an SRD entry |
+| `[[sound:pad/<id>|Thunder]]`, `[[roll:2d6+3]]` | a Critter Sounds cue, a dice button |
+| `> [!branch] If they…` | an alternative path (also read, secret, clue, combat, loot, scene, question…) |
+| `- [ ] clue` | a box to tick; unfound clues come along to the next session |
+| a table headed `| d6 | … |` | a random table with a Roll button |
 
 ## Kinds of documents and the views
 
 Session, quest, character, location, faction, item, lore, event, map, board and note, each with its own fields (`src/kinds.js`).
 - **Sessions** start from the Lazy DM's steps; **Run** gives a clock, a timestamped log and the table's chat.
-- **Timeline:** documents with a date in the world's own calendar (months, days and era are set per campaign), with "today in the world" and buttons to move it on.
+- **Timeline:** left to right; drag to move along it, scroll to zoom, right-click to add an event on that day. "Today in the world" is a flip clock: drag it to move time, and while dragging the wheel changes the pace from days to weeks, months and years.
 - **Threads:** progress clocks (on factions, quests, or the campaign's own), quests by status, and every clue: planned in which session, found in which.
 - **Relationships:** ties between documents ("ally of", "owes"…) set in Details, drawn as a web.
 - **Encounter builder:** SRD creatures with D&D 5e XP thresholds, Pathfinder 2e XP budgets or Daggerheart battle points.
-- **Boards:** free canvases of cards (text or documents) joined by labelled arrows.
+- **Boards:** right-click the canvas for a card (Enter finishes, Shift or Ctrl+Enter for a new line); drag from a card's edge to another card for an arrow, or to the canvas for a new card on its end; double-click an arrow to write on it; right-click a card to send it, whisper it, make it a document or colour it.
+- **Maps:** right-click to place a pin and pick (or make) the document it leads to; soft blurred or old-paper edges; a scale bar once you say how wide the map is.
 - **Shared world:** another campaign whose documents this one links to and reads, read only.
+
+## Writing together: GM, co-writers, players
+
+Sharing goes through the linked Critter table's Homebase (Settings › Sharing). The first start of Notes asks which you are.
+- **GM:** turns sharing on. The campaign is uploaded, sealed with AES-GCM under a key made from the **writer key**. Co-writers join with the invite code `<lobby>-<writer key>`.
+- **Co-writer:** sees and changes everything; changes sync both ways (last change per document wins; a document being written in waits until the writing pauses).
+- **Player:** joins with the lobby code and picks their Critter player (with its password, if it has one). They see only documents opened to them (the eye beside a document's kind: everyone, or chosen players), without secrets, alternative paths, clues or encounters, and read only. **Their notes are their Critter notes**: what they write appears in Critter, and handouts the GM sends them appear in Notes.
+- On the Homebase: `cnw/` sealed documents, `cniw/` sealed pictures, `cnp/` and `cnip/` what players may read. Anyone with the lobby code can reach a lobby's data (Critter works that way); the writer key is what keeps the GM's own documents unreadable to them.
 
 ## The table
 
 A campaign is linked with a lobby code, or with Critter's **music code** to also cue Critter Sounds. Nothing in Critter
 had to change; Notes writes what Critter already reads (`src/table.js`):
-- `lobbies/<code>/notes/<id>`: a note in the GM's notebook, or a handout (`dm: true`), with each player's copy. **Keep it shown** updates the handout and the players' unchanged copies as you write.
-- `lobbies/<code>/ents/<id>`: an NPC or item in the Library (`owner: 'gm'`); sending again updates it.
-- `lobbies/<code>/scenes/<id>` + `scenebg/<id>_<n>` + the lobby's `scenes` list: a map as a new hidden scene.
-- `lobbies/<code>/log/<id>`: a line in the chat (random table results), credited to the GM.
-- It reads the Library, the GM's notebook, scenes, players and the chat log.
+- `notes/<id>`: a note in the GM's notebook, or a handout with each player's copy. Sent **to everyone**, every player gets it in their notes; **whispered**, only that player does, with a whisper telling them. **Keep it shown** updates the handout and the players' unchanged copies as you write.
+- `whispers/<id>`: a whisper from the GM (`members: ['gm', <player id>]`), for any selected text, section, card or document.
+- `log/<id>`: a line in the chat (selected text, sections, random table results), credited to the GM.
+- `ents/<id>`: an NPC or item in the Library. `scenes/<id>` + `scenebg/`: a map as a hidden scene.
 
 ## Critter Sounds
 

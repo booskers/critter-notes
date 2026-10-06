@@ -41,14 +41,14 @@ let saveT = 0;
 function touch(doc, quiet) {
   if (!A.docs.has(doc.id)) return;
   doc.updated = Date.now(); A.dirty.add(doc.id); clearTimeout(saveT); saveT = setTimeout(flush, 500); if (!quiet) reindexSoon();
-  PLAN.liveTouch(doc);
+  PLAN.liveTouch(doc); SYNC.dirty(doc);
 }
 async function flush() {
   clearTimeout(saveT);
   const ids = [...A.dirty]; A.dirty.clear();
   for (const id of ids) { const d = A.docs.get(id); if (!d) continue; try { await STORE.saveDoc(cid(), d); } catch (e) { A.dirty.add(id); toast('Could not save "' + d.title + '": ' + errText(e)); } }
 }
-async function saveCamp() { if (!A.camp) return; A.camp.updated = Date.now(); try { await STORE.saveCampaign(A.camp); } catch (e) { toast('Could not save the campaign: ' + errText(e)); } }
+async function saveCamp() { if (!A.camp) return; A.camp.updated = Date.now(); try { await STORE.saveCampaign(A.camp); } catch (e) { toast('Could not save the campaign: ' + errText(e)); } SYNC.campDirty(); }
 
 /* ---------- the index: titles, links, backlinks, tags ---------- */
 function reindex() {
@@ -114,7 +114,7 @@ async function deleteDoc(id) {
   const d = A.docs.get(id); if (!d) return;
   const kids = [...A.docs.values()].filter(x => x.parent === id);
   kids.forEach(k => { k.parent = d.parent || ''; touch(k, true); });
-  A.docs.delete(id); A.dirty.delete(id);
+  A.docs.delete(id); A.dirty.delete(id); SYNC.removed(id);
   await STORE.trashDoc(cid(), id).catch(e => toast('Could not delete it: ' + errText(e)));
   reindex();
   if (A.view.k === 'doc' && A.view.id === id) go({ k: 'home' }, true); else render();
@@ -145,9 +145,12 @@ const PAGES = {
   timeline: { name: 'Timeline', icon: 'timeline', render: m => PLAN.timeline(m), hint: 'Events by their date in the world' },
   threads: { name: 'Threads', icon: 'key', render: m => PLAN.threads(m), hint: 'Quests, clocks and clues' },
   rels: { name: 'Relationships', icon: 'rels', render: m => PLAN.relsPage(m), hint: 'Who is tied to whom' },
-  graph: { name: 'Graph', icon: 'graph', render: m => VIEWS.graph(m), hint: 'Everything and how it links (Ctrl+G)' }
+  graph: { name: 'Graph', icon: 'graph', render: m => VIEWS.graph(m), hint: 'Everything and how it links (Ctrl+G)' },
+  settings: { name: 'Settings', icon: 'gear', render: m => VIEWS.settings(m), nav: false }
 };
 function go(view, replace) {
+  // leaving a document locks it, when that's how you like it
+  if (A.prefs.autoLock && A.view.k === 'doc' && (view.k !== 'doc' || view.id !== A.view.id)) { const was = A.docs.get(A.view.id); if (was && !was.locked && was.body.trim()) { if (A.ed) A.ed.commit(); was.locked = true; touch(was, true); } }
   if (A.view.k !== 'none' && !replace && JSON.stringify(view) !== JSON.stringify(A.view)) { A.back.push(A.view); A.fwd = []; if (A.back.length > 80) A.back.shift(); }
   A.view = view;
   if (A.camp) { A.camp.last = view.k === 'doc' && A.docs.has(view.id) ? view.id : ''; saveCampSoon(); }
@@ -160,8 +163,8 @@ const saveCampSoon = debounce(saveCamp, 800);
 function goBack() { if (!A.back.length) return; A.fwd.push(A.view); A.view = A.back.pop(); render(); }
 function goFwd() { if (!A.fwd.length) return; A.back.push(A.view); A.view = A.fwd.pop(); render(); }
 const openDoc = (id, extra) => { if (D(id)) go({ k: 'doc', id, ...(extra || {}) }); };
-const modeOf = d => { const m = A.modes.get(d.id); if (isRO(d)) return m === 'mind' ? 'mind' : 'read'; if (d.type === 'board') return 'read'; return m || (d.body.trim() || d.type === 'map' ? 'read' : 'edit'); };
-function setMode(d, m) { A.modes.set(d.id, m); renderMain(); const f = m === 'edit' ? $('.editor textarea') : null; if (f) f.focus(); }
+const modeOf = d => { const m = A.modes.get(d.id); if (isRO(d)) return m === 'mind' ? 'mind' : 'read'; if (d.type === 'board' || d.type === 'map') return 'read'; return m === 'mind' || m === 'run' ? m : 'read'; };
+function setMode(d, m) { if (A.ed) A.ed.commit(); A.modes.set(d.id, m); renderMain(); }
 
 /* ============================== rendering ============================== */
 function render() { applyLook(); renderSide(); renderMain(); renderRight(); paintTitle(); }
@@ -176,6 +179,10 @@ function applyLook() {
   const t = A.prefs.theme === 'system' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : A.prefs.theme;
   document.documentElement.dataset.theme = t;
   document.documentElement.dataset.read = A.prefs.readSize; document.documentElement.dataset.font = A.prefs.readFont;
+  const st = document.documentElement.style, ink = c => { const n = parseInt(c.slice(1), 16), l = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; return l > 0.6 ? '#04110f' : '#ffffff'; };
+  if (A.prefs.accent) { st.setProperty('--accent', A.prefs.accent); st.setProperty('--accent-ink', ink(A.prefs.accent)); } else { st.removeProperty('--accent'); st.removeProperty('--accent-ink'); }
+  if (A.prefs.accent2) st.setProperty('--accent2', A.prefs.accent2); else st.removeProperty('--accent2');
+  const gb = $('#gearBtn'); if (gb) gb.classList.toggle('on', A.view.k === 'settings');
   document.body.classList.toggle('focus', !!A.prefs.focus && A.view.k === 'doc');
   document.body.classList.toggle('notools', !A.prefs.toolbar);
   $('#focusBtn').classList.toggle('on', !!A.prefs.focus); $('#focusBtn').setAttribute('aria-pressed', String(!!A.prefs.focus));
@@ -189,7 +196,7 @@ function renderSide() {
   $('#sideToggle').setAttribute('aria-pressed', String(!A.prefs.sideHidden));
   $('#campName').textContent = A.camp.name; $('#campSys').textContent = SRD.SYSTEMS[campSys()] || '';
   $('#campDot').style.background = A.camp.color || 'var(--accent)';
-  const nav = $('#nav'); nav.replaceChildren(...Object.entries(PAGES).map(([k, p]) => h('button', { type: 'button', class: 'navb' + (A.view.k === k ? ' on' : ''), title: p.hint || p.name, 'aria-current': A.view.k === k ? 'page' : null, onclick: () => go({ k }) }, h('span', { html: icon(p.icon) }), h('span', { text: p.name }))));
+  const nav = $('#nav'); nav.replaceChildren(...Object.entries(PAGES).filter(([k, p]) => p.nav !== false && !(SYNC.isPlayer() && (k === 'threads' || k === 'rels'))).map(([k, p]) => h('button', { type: 'button', class: 'navb' + (A.view.k === k ? ' on' : ''), title: p.hint || p.name, 'aria-current': A.view.k === k ? 'page' : null, onclick: () => go({ k }) }, h('span', { html: icon(p.icon) }), h('span', { text: p.name }))));
   $('#sideMode').innerHTML = icon(A.prefs.side === 'tree' ? 'list' : 'folder');
   $('#sideMode').title = $('#sideMode').ariaLabel = A.prefs.side === 'tree' ? 'Group the documents by kind' : 'Arrange the documents as a tree';
   const box = $('#tree'), q = $('#sideFilter').value.trim().toLowerCase(), cur = A.view.k === 'doc' ? A.view.id : '';
@@ -197,6 +204,12 @@ function renderSide() {
   if (q) {
     const hits = [...A.docs.values()].filter(d => d.title.toLowerCase().includes(q) || docTags(d).some(t => t.includes(q.replace(/^#/, '')))).sort((a, b) => a.title.localeCompare(b.title));
     box.append(h('div', { class: 'tsec static', role: 'status' }, h('span', { text: plural(hits.length, 'match', 'matches') })), h('div', { role: 'tree', 'aria-label': 'Matches' }, hits.map(d => row(d, 1))));
+    return roving();
+  }
+  if (SYNC.isPlayer()) {
+    box.append(section('mine', 'Your notes', 'note', () => newPlayerNote(), [...A.docs.values()].sort((a, b) => b.updated - a.updated).map(d => row(d, 1)), null, A.docs.size));
+    for (const t of Object.keys(TYPES)) { const list = [...A.wdocs.values()].filter(d => d.type === t).sort((a, b) => a.title.localeCompare(b.title)); if (list.length) box.append(section('p-' + t, TYPES[t].plural, TYPES[t].icon, null, list.map(d => row(d, 1)), TYPES[t].color, list.length)); }
+    if (!A.wdocs.size) box.append(h('p', { class: 'hint pad', text: 'Nothing shared with you yet.' }));
     return roving();
   }
   const pinned = [...A.docs.values()].filter(d => d.pinned).sort((a, b) => a.title.localeCompare(b.title));
@@ -207,7 +220,11 @@ function renderSide() {
   } else {
     for (const t of Object.keys(TYPES)) {
       const list = sortedOf(t); if (!list.length && !['session', 'character', 'location'].includes(t)) continue;
-      box.append(section('k-' + t, TYPES[t].plural, TYPES[t].icon, () => create(t), list.map(d => row(d, 1)), TYPES[t].color, list.length));
+      const sec = section('k-' + t, TYPES[t].plural, TYPES[t].icon, () => create(t), grouped(t, list), TYPES[t].color, list.length);
+      // dropped on the kind's own heading: out of its group
+      const hd = sec.querySelector('.tsec'); dropTo(hd, id => { const d = A.docs.get(id); if (!d || d.type !== t) return false; const by = groupBy(t); if (by === 'group') d.group = ''; else if (by) d.fields[by] = ''; touch(d); renderSide(); return true; });
+      hd.append(ib('dots', 'Group ' + TYPES[t].plural.toLowerCase() + '…', e => groupMenu(t, e.currentTarget), 'tadd'));
+      box.append(sec);
     }
   }
   if (!A.docs.size) box.append(h('p', { class: 'hint pad', text: 'Nothing written yet. Start with New, or Ctrl+N.' }));
@@ -239,6 +256,29 @@ function renderSide() {
     }
     return r;
   }
+  // a kind's documents in groups: your own groups (drag documents in and out), or by one of their fields
+  function grouped(t, list) {
+    const by = groupBy(t); if (!by) return list.map(d => row(d, 1));
+    const key = d => String(by === 'group' ? d.group || '' : (d.fields || {})[by] || '').trim(), names = new Set(list.map(key).filter(Boolean));
+    if (by === 'group') for (const g of ((A.camp.groups || {})[t] || [])) names.add(g);
+    const out = [];
+    for (const g of [...names].sort((a, b) => a.localeCompare(b))) {
+      const k = 'g-' + t + '-' + by + '-' + g, closed = !!A.prefs.closed[k], items = list.filter(d => key(d) === g);
+      const head = h('div', { class: 'tgsec' + (closed ? ' closed' : '') }, h('button', { type: 'button', class: 'tsecb', 'aria-expanded': String(!closed), onclick: () => { A.prefs.closed[k] = !closed; savePrefs(); renderSide(); } }, h('span', { class: 'tcar', html: icon('down') }), h('span', { class: 'grow', text: g }), h('span', { class: 'tcount', text: items.length })),
+        by === 'group' ? ib('dots', 'Group ' + g, e => menu([{ label: 'Rename the group', icon: 'edit', fn: async () => { const n = await ask('Rename the group', g); if (!n) return; list.filter(d => d.group === g).forEach(d => { d.group = n; touch(d, true); }); const gs = (A.camp.groups || {})[t] || []; A.camp.groups[t] = gs.map(x => (x === g ? n : x)); saveCamp(); renderSide(); } }, { label: 'Remove the group (keep its documents)', icon: 'trash', cls: 'bad', fn: () => { list.filter(d => d.group === g).forEach(d => { d.group = ''; touch(d, true); }); if (A.camp.groups && A.camp.groups[t]) A.camp.groups[t] = A.camp.groups[t].filter(x => x !== g); saveCamp(); renderSide(); } }], e.currentTarget), 'tadd') : null);
+      dropTo(head, id => { const d = A.docs.get(id); if (!d || d.type !== t) return false; if (by === 'group') d.group = g; else d.fields[by] = g; touch(d); renderSide(); return true; });
+      out.push(h('div', { class: 'tgroup2' }, head, closed ? null : h('div', { role: 'group', 'aria-label': g }, items.map(d => row(d, 2)))));
+    }
+    const loose = list.filter(d => !key(d));
+    if (loose.length && names.size) out.push(h('div', { class: 'tgsec static' }, h('span', { text: by === 'group' ? 'In no group' : 'Not set' })));
+    out.push(...loose.map(d => row(d, 1)));
+    return out;
+  }
+  function dropTo(el, fn) {
+    el.addEventListener('dragover', e => { if (e.dataTransfer.types.includes('text/x-cn-doc')) { e.preventDefault(); el.classList.add('dropin'); } });
+    el.addEventListener('dragleave', () => el.classList.remove('dropin'));
+    el.addEventListener('drop', e => { el.classList.remove('dropin'); const id = e.dataTransfer.getData('text/x-cn-doc'); if (id && fn(id)) e.preventDefault(); });
+  }
   // one row in the tree takes Tab; the arrow keys move between rows
   function roving() { const rows = $$('.trow', box); const at = rows.find(r => r.classList.contains('on')) || rows[0]; if (at) at.tabIndex = 0; }
 }
@@ -255,6 +295,13 @@ function treeKeys(e) {
   else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDoc(d.id); }
   else if ((e.key === 'F10' && e.shiftKey) || e.key === 'ContextMenu') { e.preventDefault(); if (!isRO(d)) { const b = r.getBoundingClientRect(); docMenu(d, b.left + 20, b.bottom); } }
   else if (e.key === 'Delete' && !isRO(d)) { e.preventDefault(); deleteDoc(d.id); }
+}
+// how a kind is grouped in the sidebar: 'group' (your own groups), a field's key, or '' for not at all
+const groupBy = t => (A.prefs.groupBy || {})[t] ?? (t === 'character' ? 'group' : '');
+function groupMenu(t, at) {
+  const opts = [['group', 'Your own groups'], ...(FIELDS[t] || []).filter(([, , k]) => k === 'sel' || k === 'link' || k === 'text').filter(([k]) => !['secret', 'voice', 'want', 'goal', 'reward', 'player', 'mood', 'value'].includes(k)).map(([k, l]) => [k, l]), ['', 'Not grouped']];
+  menu([{ head: 'Group ' + TYPES[t].plural.toLowerCase() + ' by' }, ...opts.map(([k, l]) => ({ label: l, check: groupBy(t) === k, fn: () => { A.prefs.groupBy = { ...(A.prefs.groupBy || {}), [t]: k }; savePrefs(); renderSide(); } })),
+    '-', { label: 'New group…', icon: 'plus', fn: async () => { const n = await ask('Name the group', '', { placeholder: 'The Wick Society, Suspects, Dead…', hint: 'Drag ' + TYPES[t].plural.toLowerCase() + ' onto a group to put them in it, and onto the heading to take them out.' }); if (!n) return; A.camp.groups = A.camp.groups || {}; A.camp.groups[t] = [...new Set([...(A.camp.groups[t] || []), n])]; A.prefs.groupBy = { ...(A.prefs.groupBy || {}), [t]: 'group' }; savePrefs(); await saveCamp(); renderSide(); } }], at);
 }
 function moveDoc(id, target, zone) {
   const d = A.docs.get(id), t = A.docs.get(target); if (!d || !t) return;
@@ -278,57 +325,107 @@ function renderMain() {
 }
 
 function renderDoc(main, d) {
-  const mode = modeOf(d), ro = isRO(d); main.className = 'docmain m-' + mode + ' t-' + d.type;
+  const mode = modeOf(d), ro = isRO(d), full = d.type === 'board' || d.type === 'map';
+  const locked = ro || !!d.locked || mode === 'run';
+  main.className = 'docmain m-' + mode + ' t-' + d.type + (full ? ' full' : '');
+  A.ed = null;
   const crumbs = []; for (let p = D(d.parent); p && crumbs.length < 6; p = D(p.parent)) crumbs.unshift(p);
-  const writing = mode === 'edit' || mode === 'split';
-  // the bar: where it is; then reading or writing, the mind map, sending, and everything else under More
+  // the bar: where it is; then the lock, the mind map, sending, and everything else under More
+  const lockBtn = !ro && !full ? h('button', { type: 'button', class: 'ib lockb' + (d.locked ? ' on' : ''), 'aria-pressed': String(!!d.locked), title: d.locked ? 'Locked: nothing changes by accident. Click to unlock and write (Ctrl+E)' : 'Unlocked: you can write. Click to lock it (Ctrl+E)', 'aria-label': d.locked ? 'Locked. Unlock to write' : 'Unlocked. Lock it', html: icon(d.locked ? 'lock' : 'unlock'), onclick: () => toggleLock(d) }) : null;
   const bar = h('div', { class: 'docbar', role: 'toolbar', 'aria-label': 'Document' },
     h('nav', { class: 'crumbs', 'aria-label': 'Where this document is' }, ...crumbs.flatMap(p => [h('button', { type: 'button', class: 'crumb', text: p.title, onclick: () => openDoc(p.id) }), h('span', { class: 'csep', html: icon('right'), 'aria-hidden': 'true' })]),
-      h('span', { class: 'crumb cur', text: TYPES[d.type].name + (ro ? ' · ' + A.wname : '') })),
+      full ? h('span', { class: 'crumb cur', html: icon(TYPES[d.type].icon) }) : h('span', { class: 'crumb cur', text: TYPES[d.type].name + (ro ? ' · ' + A.wname : '') })),
+    full ? fullTitle(d, ro) : null,
     h('div', { class: 'grow' }),
     d.type === 'session' && !ro ? btn(mode === 'run' ? 'stop' : 'play', mode === 'run' ? 'Stop running' : 'Run the session', () => setMode(d, mode === 'run' ? 'read' : 'run'), 'tiny' + (mode === 'run' ? ' on' : ' accent2')) : null,
-    !ro && d.type !== 'board' ? h('div', { class: 'seg', role: 'group', 'aria-label': 'Read or write' }, segBtn('read', 'Read', 'read', !writing && mode !== 'mind' && mode !== 'run'), segBtn('edit', 'Write', 'edit', writing)) : null,
-    d.type !== 'board' ? h('button', { type: 'button', class: 'ib' + (mode === 'mind' ? ' on' : ''), title: 'Mind map (Ctrl+M)', 'aria-label': 'Mind map', 'aria-pressed': String(mode === 'mind'), html: icon('mind'), onclick: () => setMode(d, mode === 'mind' ? 'read' : 'mind') }) : null,
-    btn('send', 'Send to table', e => VIEWS.sendMenu(d, e.currentTarget), 'tiny primary'),
-    ro ? null : ib('dots', 'More for this document', e => docMenu(d, e.currentTarget)));
-  function segBtn(m, label, ic, on) { return h('button', { type: 'button', class: 'segb' + (on ? ' on' : ''), 'aria-pressed': String(on), title: label + ' (Ctrl+E switches)', onclick: () => setMode(d, m === 'edit' && A.modes.get(d.id) === 'split' ? 'split' : m) }, h('span', { class: 'bi', html: icon(ic) }), h('span', { class: 'sl', text: label })); }
+    full ? h('button', { type: 'button', class: 'ib' + (A.prefs.drawer ? ' on' : ''), 'aria-pressed': String(!!A.prefs.drawer), title: 'Details and notes', 'aria-label': 'Details and notes', html: icon('panel'), onclick: () => { A.prefs.drawer = !A.prefs.drawer; savePrefs(); renderMain(); } }) : null,
+    lockBtn,
+    !full ? h('button', { type: 'button', class: 'ib' + (mode === 'mind' ? ' on' : ''), title: 'Mind map (Ctrl+M)', 'aria-label': 'Mind map', 'aria-pressed': String(mode === 'mind'), html: icon('mind'), onclick: () => setMode(d, mode === 'mind' ? 'read' : 'mind') }) : null,
+    SYNC.isPlayer() ? null : btn('send', 'Send to table', e => VIEWS.sendMenu(d, e.currentTarget), 'tiny primary'),
+    ro || SYNC.isPlayer() ? null : ib('dots', 'More for this document', e => docMenu(d, e.currentTarget)));
   main.append(bar);
   if (mode === 'mind') { main.append(h('h1', { class: 'sr', text: `${d.title}: mind map` }), mindPane(d)); return; }
-  const scroll = h('div', { class: 'docscroll' }), page = h('div', { class: 'page' + (d.type === 'board' || d.type === 'map' ? ' wide' : '') });
-  if (ro) page.append(h('div', { class: 'robar', role: 'note' }, h('span', { html: icon('globe') }), h('span', {}, 'From the shared world ', h('b', { text: A.wname }), '. Read only here.'), h('span', { class: 'grow' }), btn('open', 'Open it there', () => openWorldDoc(d), 'tiny')));
-  // the title, and the kind of document it is
-  const kindBtn = h('button', { type: 'button', class: 'kindbtn', style: `--c:${typeColor(d)}`, title: ro ? TYPES[d.type].name : `${TYPES[d.type].name}. Change what kind of document this is`, 'aria-label': `Kind: ${TYPES[d.type].name}${ro ? '' : '. Change it'}`, html: icon(TYPES[d.type].icon), disabled: ro, onclick: e => kindMenu(d, e.currentTarget) });
-  const title = h('textarea', { class: 'title', rows: 1, value: d.title, spellcheck: true, placeholder: 'Untitled', 'aria-label': 'Title', readOnly: ro });
-  const fit = () => { title.style.height = 'auto'; title.style.height = title.scrollHeight + 'px'; };
-  title.addEventListener('input', fit); requestAnimationFrame(fit);
-  title.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); title.blur(); const ta = $('.editor textarea'); if (ta) ta.focus(); } if (e.key === 'Escape') { title.value = d.title; title.blur(); } });
-  title.addEventListener('blur', () => { if (!ro && title.value.trim() && title.value.trim() !== d.title) { renameDoc(d, title.value); title.value = d.title; paintTitle(); renderSide(); } else title.value = d.title; });
-  // the page's heading for screen readers; the title field shows it to everyone else
-  page.append(h('h1', { class: 'sr', text: `${d.title} (${TYPES[d.type].name})` }), h('div', { class: 'dhead' }, kindBtn, title));
+  // boards and maps take the whole middle; their details and words open in a drawer
+  if (full) {
+    const stage = h('div', { class: 'fullstage' }); main.append(h('h1', { class: 'sr', text: `${d.title} (${TYPES[d.type].name})` }), stage);
+    if (d.type === 'board') { const host = h('div', { class: 'boardbox' }); stage.append(host); queueMicrotask(() => BOARD.render(host, d, { onChange: () => touch(d), ro })); }
+    else stage.append(mapPane(d, ro));
+    if (A.prefs.drawer) {
+      const dr = h('aside', { class: 'drawer', 'aria-label': 'Details and notes' }, ib('x', 'Close', () => { A.prefs.drawer = false; savePrefs(); renderMain(); }, 'drawx'), propsBox(d, ro), h('div', { class: 'rsec', text: 'Notes' }));
+      const body = h('div', { class: 'dbody' }); dr.append(body); stage.append(dr);
+      A.ed = ED.mount(body, d, { locked: ro });
+    }
+    return;
+  }
+  const scroll = h('div', { class: 'docscroll', 'data-pan': 'y' }), page = h('div', { class: 'page' });
+  if (ro) page.append(SYNC.isPlayer() ? h('div', { class: 'robar', role: 'note' }, h('span', { html: icon('eye') }), h('span', { text: 'Shared with you by the GM. Read only.' })) : h('div', { class: 'robar', role: 'note' }, h('span', { html: icon('globe') }), h('span', {}, 'From the shared world ', h('b', { text: A.wname }), '. Read only here.'), h('span', { class: 'grow' }), btn('open', 'Open it there', () => openWorldDoc(d), 'tiny')));
+  page.append(h('h1', { class: 'sr', text: `${d.title} (${TYPES[d.type].name})` }), docHead(d, ro));
   if (d.live && TABLE.on()) page.append(h('div', { class: 'livebar', role: 'note' }, h('span', { html: icon('eye') }), h('span', { text: 'The players see this. Changes reach their notes a few seconds after you write them.' }), h('span', { class: 'grow' }), btn(null, 'Stop showing it', () => { d.live = false; touch(d, true); renderMain(); renderSide(); }, 'tiny ghost')));
   if (d.carried) { page.append(h('p', { class: 'hint note', text: `${plural(d.carried, 'unrevealed clue')} came along from the last session.` })); delete d.carried; }
   page.append(propsBox(d, ro));
-  if (d.type === 'map') page.append(mapPane(d, ro));
-  if (d.type === 'board') { const host = h('div', { class: 'boardbox' }); page.append(host); queueMicrotask(() => BOARD.render(host, d, { onChange: () => touch(d) })); }
   if (mode === 'run') page.append(VIEWS.runBar(d));
-  if (d.type !== 'board') {
-    const body = h('div', { class: 'dbody' });
-    if (writing) body.append(makeEditor(d));
-    if (!writing || mode === 'split') body.append(makeReader(d, ro));
-    page.append(body);
-    if (mode === 'split') requestAnimationFrame(() => { const ta = $('.editor textarea', body), rd = $('.reader', body); if (ta && rd) ta.addEventListener('scroll', () => { rd.scrollTop = (ta.scrollTop / Math.max(1, ta.scrollHeight - ta.clientHeight)) * (rd.scrollHeight - rd.clientHeight); }); });
-  }
+  const body = h('div', { class: 'dbody' }); page.append(body);
+  A.ed = ED.mount(body, d, { locked });
   if (mode === 'run') page.append(VIEWS.runLog(d));
   scroll.append(page); main.append(scroll);
-  if (writing && !d.body.trim()) setTimeout(() => { const ta = $('.editor textarea'); if (ta && document.activeElement !== title) ta.focus(); }, 30);
+  if (!locked && !d.body.trim()) setTimeout(() => { if (!document.activeElement || !document.activeElement.closest('.title')) A.ed && A.ed.focus(); }, 40);
+}
+function toggleLock(d) { if (isRO(d)) return; if (A.ed) A.ed.commit(); d.locked = !d.locked; touch(d, true); renderMain(); toast(d.locked ? 'Locked. It can still be read, ticked and sent, but not changed.' : 'Unlocked. Write away.'); }
+// the title of a board or map, written in its bar
+function fullTitle(d, ro) {
+  const t = h('input', { type: 'text', class: 'ftitle', value: d.title, readOnly: ro, 'aria-label': 'Title', size: Math.max(6, d.title.length) });
+  t.addEventListener('input', () => { t.size = Math.max(6, t.value.length); });
+  t.addEventListener('keydown', e => { if (e.key === 'Enter') t.blur(); if (e.key === 'Escape') { t.value = d.title; t.blur(); } });
+  t.addEventListener('change', () => { if (t.value.trim() && t.value.trim() !== d.title) { renameDoc(d, t.value); paintTitle(); renderSide(); } t.value = d.title; });
+  return t;
+}
+// who sees a document: only the GM and co-writers, every player, or some of them (they get it without secrets)
+function accessChip(d) {
+  const to = SYNC.visibleTo(d), names = Array.isArray(to) ? to.map(id => (TABLE.players().find(p => p.id === id) || {}).name).filter(Boolean) : [];
+  const label = !to ? 'Only writers' : to === 'all' ? 'All players see it' : names.join(', ') + ' see' + (names.length === 1 ? 's' : '') + ' it';
+  return h('button', { type: 'button', class: 'accchip' + (to ? ' open' : ''), title: 'Who can read this', 'aria-label': 'Who can read this: ' + label, onclick: e => menu([{ head: 'Who can read it' },
+    { label: 'Only the GM and co-writers', icon: 'lock', check: !to, fn: () => { d.access = ''; touch(d, true); renderMain(); } },
+    { label: 'Every player', sub: 'Without secrets, paths and clues', icon: 'users', check: to === 'all', fn: () => { d.access = 'all'; touch(d, true); renderMain(); } },
+    ...TABLE.players().map(p => ({ label: p.name, icon: 'character', check: Array.isArray(to) && to.includes(p.id), fn: () => { const cur = Array.isArray(d.access) ? d.access : []; d.access = cur.includes(p.id) ? cur.filter(x => x !== p.id) : [...cur, p.id]; touch(d, true); renderMain(); } }))], e.currentTarget) },
+    h('span', { html: icon(to ? 'eye' : 'eye-off') }), h('span', { text: label }));
+}
+// the top of a document: a banner (offered on hover for some kinds), the portrait with its colours bleeding out, the title
+const BANNER_KINDS = ['character', 'location', 'faction', 'quest', 'session'], PIC_KINDS = ['character', 'location', 'item', 'faction', 'lore', 'quest', 'event'];
+function docHead(d, ro) {
+  const wrap = h('div', { class: 'dtop' + (d.banner ? ' hasbanner' : '') + (d.img ? ' haspic' : '') });
+  if (d.banner) {
+    const bn = h('div', { class: 'banner' }, h('img', { 'data-cimg': d.banner, alt: '' }));
+    if (!ro) bn.append(h('div', { class: 'bantools' }, btn('image', 'Change banner', async () => { const f = await pickImage(); if (f) { d.banner = f; touch(d); renderMain(); } }, 'tiny glass'), btn('x', 'Remove', () => { d.banner = ''; touch(d); renderMain(); }, 'tiny glass')));
+    wrap.append(bn);
+  } else if (!ro && BANNER_KINDS.includes(d.type)) wrap.append(h('div', { class: 'banhover' }, btn('image', 'Add a banner', async () => { const f = await pickImage(); if (f) { d.banner = f; touch(d); renderMain(); } }, 'tiny ghost')));
+  const title = h('textarea', { class: 'title', rows: 1, value: d.title, spellcheck: true, placeholder: 'Untitled', 'aria-label': 'Title', readOnly: ro });
+  const fit = () => { title.style.height = 'auto'; title.style.height = title.scrollHeight + 'px'; };
+  title.addEventListener('input', fit); requestAnimationFrame(fit); setTimeout(fit, 50);
+  title.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); title.blur(); if (A.ed) A.ed.focus(); } if (e.key === 'Escape') { title.value = d.title; title.blur(); } });
+  title.addEventListener('blur', () => { if (!ro && title.value.trim() && title.value.trim() !== d.title) { renameDoc(d, title.value); title.value = d.title; paintTitle(); renderSide(); } else title.value = d.title; });
+  const kind = h('button', { type: 'button', class: 'kindchip', style: `--c:${typeColor(d)}`, disabled: ro, title: ro ? '' : 'Change what kind of document this is', 'aria-label': `Kind: ${TYPES[d.type].name}${ro ? '' : '. Change it'}`, onclick: e => kindMenu(d, e.currentTarget) }, h('span', { html: icon(TYPES[d.type].icon) }), h('span', { text: TYPES[d.type].name }));
+  const words = h('div', { class: 'dtitle' }, h('div', { class: 'dchips' }, kind, SYNC.isWriter() && SYNC.S.on && !ro ? accessChip(d) : null), title);
+  if (d.img) {
+    const pic = h('button', { type: 'button', class: 'portrait', disabled: ro, 'aria-label': `Picture of ${d.title}${ro ? '' : '. Change or remove it'}`, onclick: e => menu([{ label: 'Change the picture', icon: 'image', fn: async () => { const f = await pickImage(); if (f) { d.img = f; touch(d); renderMain(); } } }, { label: 'Remove the picture', icon: 'x', cls: 'bad', fn: () => { d.img = ''; touch(d); renderMain(); } }], e.currentTarget) }, h('img', { 'data-cimg': d.img, alt: '' }));
+    const glow = h('div', { class: 'glow', 'aria-hidden': 'true' });
+    STORE.imageUrl(cid(), d.img).then(u => { if (u) glow.style.backgroundImage = `url("${u}")`; });
+    wrap.append(glow, h('div', { class: 'dhero' }, pic, words));
+  } else {
+    if (!ro && PIC_KINDS.includes(d.type)) words.append(h('div', { class: 'addpic' }, btn('image', 'Add a picture', async () => { const f = await pickImage(); if (f) { d.img = f; touch(d); renderMain(); } }, 'tiny ghost')));
+    wrap.append(h('div', { class: 'dhero nopic' }, words));
+  }
+  // a picture dropped on the top becomes the portrait
+  if (!ro) { wrap.addEventListener('dragover', e => { if ([...e.dataTransfer.items].some(i => i.type.startsWith('image/'))) e.preventDefault(); }); wrap.addEventListener('drop', async e => { const f = [...e.dataTransfer.files].find(x => x.type.startsWith('image/')); if (!f) return; e.preventDefault(); d.img = await STORE.putImage(cid(), f, f.name); touch(d); renderMain(); }); }
+  hydrate(wrap);
+  return wrap;
 }
 // a shared-world document is changed in its own campaign
 async function openWorldDoc(d) { const id = d.id, w = d.world; await openCampaign(w); openDoc(id); }
 function scrollToLine(line) {
   const d = A.view.k === 'doc' && D(A.view.id); if (!d) return;
-  const r = $('.reader [data-line="' + line + '"]') || [...$$('.reader [data-line]')].reverse().find(e => +e.dataset.line <= line);
+  const r = $('.vis [data-line="' + line + '"]') || [...$$('.vis [data-line]')].reverse().find(e => +e.dataset.line <= line);
   if (r) { r.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); r.classList.add('flash'); setTimeout(() => r.classList.remove('flash'), 1400); return; }
-  const ta = $('.editor textarea'); if (ta) { const pos = d.body.split('\n').slice(0, line).join('\n').length + (line ? 1 : 0); ta.focus(); ta.setSelectionRange(pos, pos); const lh = parseFloat(getComputedStyle(ta).lineHeight) || 24; ta.scrollTop = Math.max(0, line * lh - ta.clientHeight / 3); }
+
 }
 
 /* ---------- details: the fields, picture and relationships, folded away when they're not wanted ---------- */
@@ -339,6 +436,7 @@ function propsBox(d, ro) {
   const closed = A.prefs.details[d.type] ?? !(FIELDS[d.type] || []).length;
   const grid = h('div', { class: 'props' });
   for (const [k, label, kind, opts] of fl) {
+    if (ro && (d.fields[k] === undefined || d.fields[k] === '' || d.fields[k] === null)) continue;
     const v = d.fields[k] ?? '', id = 'f' + (++fid), set = val => { d.fields[k] = val; touch(d, kind !== 'link'); if (k === 'status' || k === 'num' || k === 'when') renderSide(); };
     let ctl;
     if (kind === 'sel') ctl = h('select', { id, disabled: ro, onchange: e => set(e.target.value) }, h('option', { value: '', text: '—' }), ...opts.map(o => h('option', { value: o, text: o, selected: o === v })));
@@ -356,19 +454,7 @@ function propsBox(d, ro) {
   const tid = 'f' + (++fid);
   grid.append(h('label', { class: 'pl', for: tid, text: 'Tags' }), h('div', { class: 'pv' }, h('input', { id: tid, type: 'text', value: (d.tags || []).join(', '), placeholder: 'Comma, separated', readOnly: ro, oninput: e => { d.tags = e.target.value.split(',').map(s => s.trim().replace(/^#/, '')).filter(Boolean); touch(d); } })));
   if (!['session', 'board', 'map'].includes(d.type)) grid.append(h('span', { class: 'pl', text: 'Relationships' }), h('div', { class: 'pv' }, PLAN.relsBox(d, ro)));
-  const pic = ['character', 'location', 'item', 'faction', 'lore', 'quest', 'event'].includes(d.type);
-  const inner = h('div', { class: 'propin' + (pic ? ' haspic' : '') }, grid);
-  if (pic) {
-    const frame = h('button', { type: 'button', class: 'pic' + (d.img ? '' : ' empty'), disabled: ro && !d.img, 'aria-label': d.img ? 'Change the picture' : 'Add a picture', title: d.img ? 'Change the picture' : 'Add a picture (or drop or paste one here)' });
-    if (d.img) { frame.append(h('img', { 'data-cimg': d.img, alt: `Picture of ${d.title}` })); if (!ro) inner.append(ib('x', 'Remove the picture', () => { d.img = ''; touch(d); renderMain(); }, 'picx')); hydrate(frame); }
-    else frame.innerHTML = icon('image') + '<span>Picture</span>';
-    if (!ro) {
-      frame.onclick = async () => { const f = await pickImage(); if (f) { d.img = f; touch(d); renderMain(); } };
-      frame.addEventListener('dragover', e => { if ([...e.dataTransfer.items].some(i => i.type.startsWith('image/'))) e.preventDefault(); });
-      frame.addEventListener('drop', async e => { const f = [...e.dataTransfer.files].find(x => x.type.startsWith('image/')); if (!f) return; e.preventDefault(); d.img = await STORE.putImage(cid(), f, f.name); touch(d); renderMain(); });
-    }
-    inner.append(frame);
-  }
+  const inner = h('div', { class: 'propin' }, grid);
   if (d.table && d.table.ent) inner.append(h('div', { class: 'linkedent' }, h('span', { html: icon('table') }), h('span', { text: TABLE.T.ents.has(d.table.ent) ? 'Linked to the table\'s Library' : 'Came from a table\'s Library' })));
   // folded: a line of what's filled in
   const sum = fl.filter(([k, , kind]) => d.fields[k] && kind !== 'clock' && k !== 'secret').slice(0, 4).map(([k, l, kind]) => kind === 'wdate' ? PLAN.wfmt(d.fields[k], true) : String(d.fields[k])).filter(Boolean).join(' · ');
@@ -389,6 +475,7 @@ function renderCtx() {
     link: li => {
       if (li.kind === 'doc') {
         const id = resolve(li.title), label = li.label || li.title + (li.heading ? ' › ' + li.heading : '');
+        if (!id && (SYNC.isPlayer() || isRO(D(A.view.id) || {}))) return esc(label);
         if (!id) return `<a class="wl new" href="#" data-new="${esc(li.title)}" title="Not written yet. Click to start it.">${esc(label)}</a>`;
         const x = D(id), w = isRO(x); return `<a class="wl${w ? ' world' : ''}" href="#" data-doc="${id}" data-h="${esc(li.heading)}" style="--c:${typeColor(x)}"${w ? ` title="From ${esc(A.wname)}"` : ''}>${icon(TYPES[x.type].icon)}${esc(label)}</a>`;
       }
@@ -399,24 +486,6 @@ function renderCtx() {
       return esc(li.raw);
     }
   };
-}
-function makeReader(d, ro) {
-  const r = h('div', { class: 'reader prose' + (d.body.trim() ? '' : ' empty') });
-  r.innerHTML = d.body.trim() ? MD.render(d.body, renderCtx()) : `<p class="hint">${ro ? 'Nothing written.' : 'Nothing written yet. Double-click here, or press Write.'}</p>`;
-  hydrate(r);
-  if (ro) r.querySelectorAll('input[type=checkbox]').forEach(c => { c.disabled = true; });
-  r.addEventListener('change', e => {
-    const c = e.target; if (c.type !== 'checkbox' || c.dataset.line === undefined) return;
-    d.body = MD.toggleTask(d.body, +c.dataset.line, c.checked); touch(d, true);
-    c.closest('li').classList.toggle('done', c.checked);
-  });
-  r.addEventListener('click', e => readerClick(e, d));
-  r.addEventListener('dblclick', e => {
-    if (e.target.closest('a,button,input,img')) return;
-    const at = e.target.closest('[data-line]'), line = at ? +at.dataset.line : 0;
-    if (!isRO(d) && (modeOf(d) === 'read' || modeOf(d) === 'run')) { A.modes.set(d.id, 'edit'); renderMain(); setTimeout(() => scrollToLine(line), 20); }
-  });
-  return r;
 }
 async function hydrate(root) { for (const im of root.querySelectorAll('img[data-cimg]')) { const u = await STORE.imageUrl(cid(), im.dataset.cimg).catch(() => ''); if (u) im.src = u; else im.classList.add('missing'); } }
 function readerClick(e, d) {
@@ -508,189 +577,29 @@ async function peek(a, sticky) {
 }
 document.addEventListener('pointerdown', e => { const c = $('#hov'); if (c && c.classList.contains('sticky') && !e.target.closest('#hov')) hideHover(); }, true);
 
-/* ============================== the editor ============================== */
-function makeEditor(d) {
-  const ta = h('textarea', { class: 'src', value: d.body, spellcheck: true, 'aria-label': 'Text of ' + d.title, 'aria-autocomplete': 'list', 'aria-controls': 'ac', placeholder: 'Write here. [[ links to a document, an item or a monster; / adds a block (an alternative path, read-aloud text, a secret…).' });
-  const tools = h('div', { class: 'etools', role: 'toolbar', 'aria-label': 'Writing tools' },
-    ib('heading', 'Heading', () => linePrefix(ta, '## ')), ib('bold', 'Bold (Ctrl+B)', () => wrapSel(ta, '**')), ib('italic', 'Italic (Ctrl+I)', () => wrapSel(ta, '*')),
-    ib('list', 'List', () => linePrefix(ta, '- ')), ib('tasks', 'Checklist', () => linePrefix(ta, '- [ ] ')), h('span', { class: 'esep' }),
-    ib('branch', 'Alternative path', () => insertBlock(ta, '> [!branch] If the party |\n> - ')), ib('speech', 'Read-aloud text', () => insertBlock(ta, '> [!read] |\n> ')),
-    ib('eye-off', 'GM secret', () => insertBlock(ta, '> [!secret] |\n> ')), ib('key', 'Clue', () => insertBlock(ta, '> [!clue] |\n> ')), h('span', { class: 'esep' }),
-    ib('link', 'Link a document, item or monster ([[)', () => { replaceSel(ta, '[[', 2); acCheck(ta, d); }), ib('image', 'Picture', async () => { const f = await pickImage(); if (f) replaceSel(ta, `![](img:${f})\n`); }),
-    ib('music', 'Sound cue', e => VIEWS.soundPicker(e.currentTarget, s => replaceSel(ta, s))), ib('dice', 'Dice button', () => replaceSel(ta, '[[roll:1d20]]')), h('span', { class: 'esep' }),
-    ib('swords', 'Encounter builder', () => PLAN.encounter(t => insertLines(ta, t))), ib('table2', 'Random table', () => insertLines(ta, PLAN.TABLE_SNIP)));
-  const wrap = h('div', { class: 'editor' }, tools, ta);
-  const fit = () => { if (modeOf(d) === 'edit') { ta.style.height = 'auto'; ta.style.height = Math.max(360, ta.scrollHeight + 40) + 'px'; } };
-  requestAnimationFrame(fit);
-  const refreshPreview = debounce(() => { const rd = $('.reader', wrap.parentElement); if (rd) { const st = rd.scrollTop; rd.replaceWith(makeReader(d)); const n = $('.reader', $('#main')); if (n) n.scrollTop = st; } }, 250);
-  ta.addEventListener('input', () => { d.body = ta.value; touch(d); fit(); if (modeOf(d) === 'split') refreshPreview(); acCheck(ta, d); });
-  ta.addEventListener('keydown', e => editorKey(e, ta, d));
-  ta.addEventListener('click', () => acCheck(ta, d));
-  ta.addEventListener('blur', () => setTimeout(() => { if (!document.activeElement || !document.activeElement.closest('#ac')) acClose(); }, 150));
-  ta.addEventListener('paste', async e => {
-    const files = [...(e.clipboardData || {}).files || []].filter(f => f.type.startsWith('image/')); if (!files.length) return;
-    e.preventDefault(); for (const f of files) { const name = await STORE.putImage(cid(), f, f.name || 'pasted.png'); replaceSel(ta, `![](img:${name})\n`); }
-  });
-  ta.addEventListener('dragover', e => { if (e.dataTransfer.types.includes('text/x-cn-doc') || e.dataTransfer.types.includes('Files')) e.preventDefault(); });
-  ta.addEventListener('drop', async e => {
-    const id = e.dataTransfer.getData('text/x-cn-doc');
-    if (id && D(id)) { e.preventDefault(); ta.focus(); replaceSel(ta, `[[${D(id).title}]]`); return; }
-    const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/')); if (!files.length) return;
-    e.preventDefault(); for (const f of files) { const name = await STORE.putImage(cid(), f, f.name); replaceSel(ta, `![](img:${name})\n`); }
-  });
-  return wrap;
-}
-// editing through execCommand keeps Ctrl+Z working
-function replaceRange(ta, s, e, text, caret) { ta.focus(); ta.setSelectionRange(s, e); if (!document.execCommand('insertText', false, text)) { ta.setRangeText(text, s, e, 'end'); ta.dispatchEvent(new Event('input')); } const c = s + (caret === undefined ? text.length : caret); ta.setSelectionRange(c, c); }
-function replaceSel(ta, text, caret) { replaceRange(ta, ta.selectionStart, ta.selectionEnd, text, caret); }
-function wrapSel(ta, m) { const s = ta.selectionStart, e = ta.selectionEnd, t = ta.value.slice(s, e); replaceRange(ta, s, e, m + t + m, t ? undefined : m.length); }
-function lineBounds(ta) { const v = ta.value, s = v.lastIndexOf('\n', ta.selectionStart - 1) + 1; let e = v.indexOf('\n', ta.selectionEnd); if (e < 0) e = v.length; return [s, e]; }
-function linePrefix(ta, p) { const [s, e] = lineBounds(ta); const lines = ta.value.slice(s, e).split('\n'); const all = lines.every(l => l.startsWith(p)); replaceRange(ta, s, e, lines.map(l => (all ? l.slice(p.length) : p + l.replace(/^(#{1,6}\s+|[-*+]\s+(\[[ xX]\]\s+)?)/, ''))).join('\n')); }
-function insertBlock(ta, snippet) {
-  const v = ta.value, [s, e] = lineBounds(ta), cur = v.slice(s, e);
-  const pre = cur.trim() ? (e < v.length ? '' : '\n') : '', at = cur.trim() ? e : s, lead = cur.trim() ? '\n\n' : (s > 0 && v[s - 2] !== '\n' && v[s - 1] === '\n' && v.slice(0, s).trim() ? '\n' : '');
-  const k = snippet.indexOf('|'), text = lead + snippet.replace('|', '') + '\n';
-  replaceRange(ta, at, cur.trim() ? e : e, (cur.trim() ? pre : '') + text, (cur.trim() ? pre.length : 0) + lead.length + (k < 0 ? snippet.length : k));
-}
-// a block of lines after the line the caret is on (or in its place, when that line is empty)
-function insertLines(ta, text) {
-  const [s, e] = lineBounds(ta), cur = ta.value.slice(s, e);
-  if (!cur.trim()) replaceRange(ta, s, e, text); else replaceRange(ta, e, e, '\n\n' + text);
-}
-function editorKey(e, ta, d) {
-  if (acKey(e, ta, d)) return;
-  const c = e.ctrlKey || e.metaKey;
-  if (c && e.key.toLowerCase() === 'b') { e.preventDefault(); wrapSel(ta, '**'); return; }
-  if (c && e.key.toLowerCase() === 'i') { e.preventDefault(); wrapSel(ta, '*'); return; }
-  if (c && e.key.toLowerCase() === 'l') { e.preventDefault(); replaceSel(ta, '[[', 2); acCheck(ta, d); return; }
-  if (e.key === 'Tab') {
-    e.preventDefault(); const [s, en] = lineBounds(ta), lines = ta.value.slice(s, en).split('\n');
-    const isList = lines.some(l => /^\s*(?:>\s?)*\s*([-*+]|\d+[.)])\s/.test(l));
-    if (!isList && !e.shiftKey && ta.selectionStart === ta.selectionEnd) { replaceSel(ta, '  '); return; }
-    const out = lines.map(l => { const m = /^((?:\s*>\s?)*)(.*)$/.exec(l); return e.shiftKey ? m[1] + m[2].replace(/^ {1,2}|^\t/, '') : m[1] + '  ' + m[2]; });
-    const pos = ta.selectionStart; replaceRange(ta, s, en, out.join('\n')); const shift = out[0].length - lines[0].length; ta.setSelectionRange(Math.max(s, pos + shift), Math.max(s, pos + shift));
-    return;
-  }
-  if (e.key === 'Enter' && !e.shiftKey && !c && ta.selectionStart === ta.selectionEnd) {
-    const [s, en] = lineBounds(ta); if (ta.selectionStart !== en) return;
-    const line = ta.value.slice(s, en), m = /^((?:\s*>\s?)*)(\s*)([-*+]|\d{1,3}[.)])(\s+)(\[[ xX]\]\s+)?(.*)$/.exec(line);
-    if (m) {
-      e.preventDefault();
-      if (!m[6].trim()) { replaceRange(ta, s, en, m[1].replace(/\s+$/, m[1] ? ' ' : '')); return; }
-      const num = /\d/.test(m[3]) ? (parseInt(m[3], 10) + 1) + m[3].slice(-1) : m[3];
-      replaceSel(ta, '\n' + m[1] + m[2] + num + m[4] + (m[5] ? '[ ] ' : ''));
-      return;
-    }
-    const q = /^((?:\s*>\s?)+)(.*)$/.exec(line);
-    if (q) { e.preventDefault(); if (!q[2].trim() && !/\[!/.test(line)) replaceRange(ta, s, en, ''); else replaceSel(ta, '\n' + q[1].replace(/\s*$/, ' ')); return; }
-  }
-}
-
-/* ---------- [[ and / : picking a link or a block as you type ---------- */
-const SLASH = [
-  ['Alternative path', 'branch', '> [!branch] If the party |\n> - '], ['Read-aloud text', 'speech', '> [!read] |\n> '], ['GM secret', 'eye-off', '> [!secret] |\n> '],
-  ['Clue', 'key', '> [!clue] |\n> '], ['Encounter', 'swords', '> [!combat] |\n> - '], ['Treasure', 'gem', '> [!loot] |\n> - '], ['Scene', 'clapper', '### Scene: |\n'],
-  ['Open question', 'help', '> [!question] |\n> '], ['Heading', 'heading', '## |'], ['Checklist', 'tasks', '- [ ] |'], ['List', 'list', '- |'],
-  ['Table', 'table2', '§table'], ['Random table', 'dice', '§rtable'], ['Encounter builder', 'swords', '§enc'], ['Divider', 'minus', '---\n|'], ['Link', 'link', '[[|'], ['Dice', 'dice', '[[roll:1d20|]]'],
-  ['Sound cue', 'music', '§sound'], ['Picture', 'image', '§image'], ['Today\'s date', 'clock', '§date']
-];
-const SLASH_WORDS = { table2: 'grid columns rows', swords: 'combat fight monsters battle encounter builder', dice: 'roll random table', branch: 'alt option if choice fork', speech: 'boxed text description narrate', 'eye-off': 'hidden gm private', key: 'secret hint', gem: 'loot reward', clapper: 'scene', help: 'question todo', tasks: 'todo check box', image: 'map photo', music: 'audio cue pad playlist', dice: 'roll' };
-let AC = null;
-function acClose() { const p = $('#ac'); if (p) p.hidden = true; if (AC && AC.ta) AC.ta.removeAttribute('aria-activedescendant'); AC = null; }
-async function acCheck(ta, d) {
-  const pos = ta.selectionStart, before = ta.value.slice(0, pos), ls = before.lastIndexOf('\n') + 1, line = before.slice(ls);
-  const wk = line.lastIndexOf('[[');
-  if (wk >= 0 && !line.slice(wk).includes(']]')) { const q = line.slice(wk + 2); if (q.length <= 60) return acOpen(ta, d, 'link', ls + wk, q); }
-  const sm = /^(\s*(?:>\s?)*)\/([\w' ]{0,20})$/.exec(line);
-  if (sm) return acOpen(ta, d, 'slash', ls + sm[1].length, sm[2]);
-  acClose();
-}
-async function acOpen(ta, d, kind, start, q) {
-  const tok = AC = { ta, d, kind, start, q, items: [], sel: 0 };
-  let items = [];
-  if (kind === 'slash') { const qq = q.toLowerCase().trim(); items = SLASH.filter(([l, ic, snip]) => !qq || `${l} ${ic} ${snip} ${SLASH_WORDS[ic] || ''}`.toLowerCase().includes(qq)).map(([label, ic, snip]) => ({ label, ic, snip })); }
-  else {
-    const ql = q.toLowerCase().trim(), mode = /^(table|srd|sound|roll):/i.exec(q);
-    if (!mode) {
-      const docs = [...A.docs.values(), ...A.wdocs.values()].filter(x => x.id !== d.id && (!ql || x.title.toLowerCase().includes(ql))).sort((a, b) => (a.title.toLowerCase().startsWith(ql) ? 0 : 1) - (b.title.toLowerCase().startsWith(ql) ? 0 : 1) || b.updated - a.updated).slice(0, 7);
-      items.push(...docs.map(x => ({ label: x.title, ic: TYPES[x.type].icon, color: typeColor(x), sub: (isRO(x) ? A.wname + ' · ' : '') + TYPES[x.type].name, ins: `[[${x.title}]]` })));
-      if (ql && !resolve(q)) items.push({ label: `New: ${q.trim()}`, ic: 'plus', sub: 'A document to write later', ins: `[[${q.trim()}]]` });
-    }
-    const qq = mode ? q.slice(mode[0].length).toLowerCase().trim() : ql;
-    if (TABLE.on() && (!mode || mode[1].toLowerCase() === 'table') && qq) items.push(...[...TABLE.T.ents.values()].filter(e => String(e.name || '').toLowerCase().includes(qq)).slice(0, 5).map(e => ({ label: e.name, ic: 'table', sub: `Table · ${e.kind}`, ins: `[[table:${e.id}|${e.name}]]` })));
-    const sc = TABLE.T.sounds;
-    if (sc && (!mode || mode[1].toLowerCase() === 'sound') && qq) for (const [k, l] of [['scene', 'scenes'], ['playlist', 'playlists'], ['pad', 'pads'], ['scape', 'scapes']]) items.push(...(sc[l] || []).filter(x => String(x.name).toLowerCase().includes(qq)).slice(0, 3).map(x => ({ label: x.name, ic: 'music', sub: 'Critter Sounds · ' + VIEWS.SOUND_KIND[k], ins: `[[sound:${k}/${x.id}|${x.name}]]` })));
-    if (mode && mode[1].toLowerCase() === 'roll') items.push({ label: 'Roll ' + (qq || '1d20'), ic: 'dice', ins: `[[roll:${qq || '1d20'}]]` });
-    if ((!mode || mode[1].toLowerCase() === 'srd') && qq.length >= 2) {
-      const hits = await SRD.search(campSys(), qq, 6);
-      if (AC !== tok) return;
-      items.push(...hits.map(x => ({ label: x.n, ic: x.kind === 'npc' ? 'character' : x.kind === 'item' ? 'item' : 'lore', sub: `SRD · ${x.c || SRD.KINDS[x.kind]}`, ins: `[[srd:${SRD.refOf(x)}|${x.n}]]` })));
-    }
-  }
-  tok.items = items;
-  if (!items.length) { acClose(); return; }
-  const p = $('#ac'); p.replaceChildren(...items.map((it, i) => h('div', { class: 'aci' + (i === 0 ? ' on' : ''), id: 'ac-' + i, role: 'option', 'aria-selected': String(i === 0), onmousedown: e => { e.preventDefault(); acPick(i); } },
-    h('span', { class: 'aic', html: icon(it.ic), style: it.color ? `color:${it.color}` : '' }), h('span', { class: 'acl', text: it.label }), it.sub ? h('span', { class: 'acs', text: it.sub }) : null)));
-  p.hidden = false; ta.setAttribute('aria-activedescendant', 'ac-0');
-  const c = caretXY(ta, start), w = p.offsetWidth, ht = p.offsetHeight;
-  p.style.left = Math.max(8, Math.min(innerWidth - w - 8, c.x)) + 'px'; p.style.top = (c.y + c.h + ht + 8 < innerHeight ? c.y + c.h + 4 : c.y - ht - 4) + 'px';
-}
-function acKey(e, ta, d) {
-  if (!AC || AC.ta !== ta || $('#ac').hidden) return false;
-  const n = AC.items.length;
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); AC.sel = (AC.sel + (e.key === 'ArrowDown' ? 1 : n - 1)) % n; $$('#ac .aci').forEach((b, i) => { b.classList.toggle('on', i === AC.sel); b.setAttribute('aria-selected', String(i === AC.sel)); }); ta.setAttribute('aria-activedescendant', 'ac-' + AC.sel); $$('#ac .aci')[AC.sel].scrollIntoView({ block: 'nearest' }); return true; }
-  if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); acPick(AC.sel); return true; }
-  if (e.key === 'Escape') { e.preventDefault(); acClose(); return true; }
-  return false;
-}
-async function acPick(i) {
-  const { ta, kind, start, items, d } = AC || {}; const it = items && items[i]; if (!it) return;
-  acClose();
-  const end = ta.selectionStart;
-  if (kind === 'link') { const after = ta.value.slice(end, end + 2) === ']]' ? 2 : 0; replaceRange(ta, start, end + after, it.ins); return; }
-  if (it.snip === '§sound') { replaceRange(ta, start, end, ''); VIEWS.soundPicker(ta, s => replaceSel(ta, s)); return; }
-  if (it.snip === '§image') { replaceRange(ta, start, end, ''); const f = await pickImage(); if (f) replaceSel(ta, `![](img:${f})\n`); return; }
-  if (it.snip === '§table') { replaceRange(ta, start, end, '| Column | Column |\n| --- | --- |\n|  |  |\n', 2); return; }
-  if (it.snip === '§rtable') { replaceRange(ta, start, end, PLAN.TABLE_SNIP); return; }
-  if (it.snip === '§enc') { replaceRange(ta, start, end, ''); PLAN.encounter(t => insertLines(ta, t)); return; }
-  if (it.snip === '§date') { replaceRange(ta, start, end, new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })); return; }
-  // blocks inside a callout keep its "> "
-  const ls = ta.value.lastIndexOf('\n', start - 1) + 1, pre = ta.value.slice(ls, start);
-  const k = it.snip.indexOf('|'), text = it.snip.replace('|', '').split('\n').map((l, j) => (j ? pre + l : l)).join('\n');
-  const caret = k < 0 ? text.length : it.snip.slice(0, k).split('\n').map((l, j) => (j ? pre + l : l)).join('\n').length;
-  replaceRange(ta, start, end, text, caret);
-  if (it.snip.startsWith('[[|')) acCheck(ta, d);
-}
-// where the caret is on screen, measured with a copy of the textarea
-function caretXY(ta, pos) {
-  const cs = getComputedStyle(ta), m = document.createElement('div');
-  for (const p of ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'paddingTop', 'paddingLeft', 'paddingRight', 'paddingBottom', 'borderTopWidth', 'borderLeftWidth', 'boxSizing', 'tabSize']) m.style[p] = cs[p];
-  Object.assign(m.style, { position: 'absolute', visibility: 'hidden', whiteSpace: 'pre-wrap', overflowWrap: 'break-word', width: ta.clientWidth + 'px', left: '-9999px', top: '0' });
-  m.textContent = ta.value.slice(0, pos); const s = document.createElement('span'); s.textContent = '​'; m.append(s); document.body.append(m);
-  const r = ta.getBoundingClientRect(), out = { x: r.left + s.offsetLeft - ta.scrollLeft, y: r.top + s.offsetTop - ta.scrollTop, h: parseFloat(cs.lineHeight) || 22 };
-  m.remove(); return out;
-}
-
 /* ============================== map and mind map panes ============================== */
 const mapViews = new Map(), mindViews = new Map();
 function mapPane(d, ro) {
-  const wrap = h('div', { class: 'mapwrap' });
   if (!d.map) d.map = { img: '', w: 0, h: 0, pins: [] };
-  const tools = h('div', { class: 'maptools' },
-    btn('image', d.map.img ? 'Change the picture' : 'Choose a picture', async () => { const f = await pickImage(); if (f) { d.map.img = f; d.map.w = 0; touch(d); mapViews.delete(d.id); renderMain(); } }, 'tiny'),
-    TABLE.on() ? btn('table', 'From a table scene', e => VIEWS.scenePicker(e.currentTarget, async sc => { const f = await VIEWS.sceneToFile(sc); if (f) { d.map.img = f; d.map.w = 0; touch(d); mapViews.delete(d.id); renderMain(); } }), 'tiny') : null,
-    h('span', { class: 'grow' }), h('span', { class: 'hint', text: d.map.img ? 'Drag a document here from the sidebar to pin it. Double-click a pin to open what it leads to.' : '' }));
-  if (!ro) wrap.append(tools);
-  if (!d.map.img) {
-    const empty = h('div', { class: 'mapempty' }, h('span', { html: icon('map') }), h('b', { text: 'A map with pins' }), h('p', { class: 'hint', text: 'Choose a picture of your world, a city or a dungeon (drop or paste one here works too). Then place pins that lead to its places, people and deeper maps.' }), btn('image', 'Choose a picture', async () => { const f = await pickImage(); if (f) { d.map.img = f; touch(d); renderMain(); } }, 'primary'));
+  const M = d.map, wrap = h('div', { class: 'mapwrap' });
+  const choose = async () => { const f = await pickImage(); if (f) { M.img = f; M.w = 0; touch(d); mapViews.delete(d.id); renderMain(); } };
+  if (!M.img) {
+    const empty = h('div', { class: 'mapempty' }, h('span', { html: icon('map') }), h('b', { text: 'A map with pins' }), h('p', { class: 'hint', text: 'Choose a picture of your world, a city or a dungeon (or drop one here). Right-click it to place pins that lead to its places, people and deeper maps.' }),
+      h('div', { class: 'row center' }, btn('image', 'Choose a picture', choose, 'primary'), TABLE.on() ? btn('table', 'From a table scene', e => VIEWS.scenePicker(e.currentTarget, async sc => { const f = await VIEWS.sceneToFile(sc); if (f) { M.img = f; touch(d); renderMain(); } })) : null));
     empty.addEventListener('dragover', e => e.preventDefault());
-    empty.addEventListener('drop', async e => { const f = [...e.dataTransfer.files].find(x => x.type.startsWith('image/')); if (!f) return; e.preventDefault(); d.map.img = await STORE.putImage(cid(), f, f.name); touch(d); renderMain(); });
+    empty.addEventListener('drop', async e => { const f = [...e.dataTransfer.files].find(x => x.type.startsWith('image/')); if (!f) return; e.preventDefault(); M.img = await STORE.putImage(cid(), f, f.name); touch(d); renderMain(); });
     wrap.append(empty); return wrap;
   }
   const host = h('div', { class: 'mapbox' }); wrap.append(host);
-  STORE.imageUrl(cid(), d.map.img).then(url => {
+  // the map's own settings float over it, top right
+  if (!ro) wrap.append(h('div', { class: 'maptools' },
+    ib('image', 'Change the picture', choose),
+    TABLE.on() ? ib('table', 'Use a table scene', e => VIEWS.scenePicker(e.currentTarget, async sc => { const f = await VIEWS.sceneToFile(sc); if (f) { M.img = f; M.w = 0; touch(d); mapViews.delete(d.id); renderMain(); } })) : null,
+    ib('pie', 'Edges: soft or old paper', e => menu([{ head: 'The map\'s edges' }, ...[['blur', 'Soft: blur outwards'], ['paper', 'Old map paper'], ['none', 'Plain']].map(([k, l]) => ({ label: l, check: (M.edge || 'blur') === k, fn: () => { M.edge = k; touch(d, true); renderMain(); } }))], e.currentTarget)),
+    ib('fit', 'The map\'s scale', e => scaleDialog(d, e.currentTarget))));
+  STORE.imageUrl(cid(), M.img).then(url => {
     const mv = MAPV.render(host, d, {
-      url, view: mapViews.get(d.id), onView: v => mapViews.set(d.id, v),
+      url, ro, view: mapViews.get(d.id), onView: v => mapViews.set(d.id, v),
       typeOf: id => (D(id) || {}).type, titleOf: id => (D(id) || {}).title || '',
       onChange: () => touch(d), onOpen: id => openDoc(id),
       preview: id => { const x = D(id); if (!x) return ''; const t = MD.plain(x.body).replace(/\s+/g, ' ').trim(); return `<div class="hk" style="--c:${typeColor(x)}">${icon(TYPES[x.type].icon)}<span>${TYPES[x.type].name}</span></div><b>${esc(x.title)}</b>${t ? `<p>${esc(t.slice(0, 200))}${t.length > 200 ? '…' : ''}</p>` : ''}`; },
@@ -698,9 +607,17 @@ function mapPane(d, ro) {
       create: (title, type) => { const x = newDoc({ type, title, parent: d.id }); renderSide(); return x.id; }
     });
     host.addEventListener('dragover', e => { if (e.dataTransfer.types.includes('text/x-cn-doc')) e.preventDefault(); });
-    host.addEventListener('drop', e => { const id = e.dataTransfer.getData('text/x-cn-doc'); if (!id || !D(id)) return; e.preventDefault(); mv.pinAt(e, id, D(id).title); });
+    host.addEventListener('drop', e => { const id = e.dataTransfer.getData('text/x-cn-doc'); if (!id || !D(id) || ro) return; e.preventDefault(); mv.pinAt(e, id, D(id).title); });
   });
   return wrap;
+}
+// how wide the map is in the world, so the scale bar can say how far things are
+function scaleDialog(d, at) {
+  const M = d.map, sc = M.scale || {};
+  const w = h('input', { type: 'number', min: 0, step: 'any', value: sc.w || '', placeholder: '120', 'aria-label': 'How wide the map is' });
+  const u = h('select', { 'aria-label': 'In' }, ...['miles', 'km', 'leagues', 'feet', 'metres', 'days of travel', 'squares'].map(x => h('option', { value: x, text: x, selected: (sc.unit || 'miles') === x })));
+  const m = modal('The map\'s scale', h('div', { class: 'form' }, h('p', { class: 'hint', text: 'How far is it from the left edge of the map to the right? A scale bar then shows in the corner.' }), h('div', { class: 'row' }, w, u)),
+    [btn(null, 'No scale', () => { delete M.scale; touch(d, true); m.close(); renderMain(); }, 'ghost'), btn('check', 'Save', () => { M.scale = { w: +w.value || 0, unit: u.value }; touch(d, true); m.close(); renderMain(); }, 'primary')]);
 }
 function mindPane(d) {
   const host = h('div', { class: 'mindwrap' });
@@ -800,17 +717,20 @@ function pickImage() {
 
 /* ---------- document menus ---------- */
 function newDocMenu(parent, at) {
+  if (SYNC.isPlayer()) { newPlayerNote(); return; }
   menu([{ head: parent ? 'New inside ' + D(parent).title : 'New document' }, ...Object.entries(TYPES).map(([t, x]) => ({ label: x.name, sub: x.hint, icon: x.icon, color: x.color, fn: () => create(t, parent) }))], at || $('#newBtn'));
 }
-function create(type, parent) { const d = newDoc({ type, parent: parent || '' }); A.modes.set(d.id, type === 'map' ? 'read' : 'edit'); if (parent) { A.prefs.open[parent] = true; savePrefs(); } openDoc(d.id); setTimeout(() => { const t = $('.dhead .title'); if (t && type !== 'session') { t.focus(); t.select(); } }, 40); }
+async function newPlayerNote() { const id = await SYNC.newNote(''); if (!id) return; for (let i = 0; i < 20 && !A.docs.has(id); i++) await new Promise(r => setTimeout(r, 100)); openDoc(id); setTimeout(() => { const t = $('.dtitle .title'); if (t) t.focus(); }, 60); }
+function create(type, parent) { const d = newDoc({ type, parent: parent || '' }); if (parent) { A.prefs.open[parent] = true; savePrefs(); } openDoc(d.id); setTimeout(() => { const t = $('.dtitle .title, .ftitle'); if (t && type !== 'session') { t.focus(); t.select(); } }, 40); }
 function kindMenu(d, at) {
   menu([{ head: 'What kind of document is this?' }, ...Object.entries(TYPES).map(([t, x]) => ({ label: x.name, icon: x.icon, color: x.color, cls: t === d.type ? 'on' : '', fn: () => { if (t === d.type) return; d.type = t; if (t === 'map' && !d.map) d.map = { img: '', w: 0, h: 0, pins: [] }; touch(d); render(); } }))], at);
 }
 function docMenu(d, at, y) {
+  if (SYNC.isPlayer() || isRO(d)) return;
   const pos = typeof at === 'number' ? { x: at, y } : at, here = A.view.k === 'doc' && A.view.id === d.id, m = modeOf(d);
   menu([
     here ? null : { label: 'Open', icon: 'open', fn: () => openDoc(d.id) },
-    here && d.type !== 'board' ? { label: 'Write and read side by side', icon: 'split', check: m === 'split', fn: () => setMode(d, m === 'split' ? 'edit' : 'split') } : null,
+    here && !['board', 'map'].includes(d.type) ? { label: d.locked ? 'Unlock it' : 'Lock it', icon: d.locked ? 'unlock' : 'lock', fn: () => toggleLock(d) } : null,
     here ? { label: 'Focus on the page', icon: 'focus', check: !!A.prefs.focus, fn: () => toggleFocus() } : null,
     TABLE.on() ? { label: d.live ? 'Stop showing it to the players' : 'Keep it shown to the players', sub: d.live ? '' : 'They see every change', icon: 'eye', check: !!d.live, fn: () => { d.live = !d.live; touch(d, true); if (d.live) VIEWS.send(d, 'show'); render(); } } : null,
     '-',
@@ -854,7 +774,7 @@ function quickOpen() {
 /* ============================== campaigns ============================== */
 async function loadCampaigns() { A.camps = (await STORE.listCampaigns().catch(() => [])).sort((a, b) => (b.updated || 0) - (a.updated || 0)); }
 async function openCampaign(id) {
-  await flush();
+  await flush(); SYNC.stop();
   const meta = A.camps.find(c => c.id === id); if (!meta) return;
   A.camp = meta; A.docs = new Map(); A.back = []; A.fwd = []; A.modes = new Map(); mapViews.clear(); mindViews.clear();
   A.prefs.lastCamp = id; savePrefs();
@@ -865,6 +785,7 @@ async function openCampaign(id) {
   A.view = { k: 'none' };
   go(meta.last && D(meta.last) ? { k: 'doc', id: meta.last } : { k: 'home' }, true);
   if (meta.table) TABLE.connect(meta.table); else TABLE.disconnect();
+  if (meta.share && meta.share.on) SYNC.start(); SYNC.paintRole();
 }
 async function createCampaign(o) {
   const meta = { id: rid('c'), name: String(o.name || 'New campaign').slice(0, 80), sys: o.sys || 'generic', color: o.color || '', table: o.table || '', created: Date.now(), updated: Date.now() };
@@ -877,7 +798,8 @@ function campaignMenu(at) {
     ...A.camps.map(c => ({ label: c.name, icon: 'folder', cls: A.camp && c.id === A.camp.id ? 'on' : '', sub: SRD.SYSTEMS[c.sys] || '', fn: () => openCampaign(c.id) })),
     '-',
     { label: 'New campaign…', icon: 'plus', fn: () => VIEWS.newCampaign() },
-    { label: 'Campaign settings…', icon: 'edit', disabled: !A.camp, fn: () => VIEWS.campaignSettings() }], at);
+    { label: 'Join a campaign…', icon: 'users', fn: () => VIEWS.joinMenu(at) },
+    { label: 'Settings', icon: 'gear', fn: () => go({ k: 'settings' }) }], at);
 }
 
 /* ============================== keys and the window ============================== */
@@ -887,18 +809,29 @@ document.addEventListener('keydown', e => {
   if (c && (k === 'k' || k === 'p') && A.camp) { e.preventDefault(); if ($('.card.quick')) return; quickOpen(); return; }
   if (c && k === 'n' && A.camp) { e.preventDefault(); newDocMenu(null); return; }
   if (c && k === 's') { e.preventDefault(); flush().then(() => toast('Saved.')); return; }
-  if (c && !e.shiftKey && k === 'e' && A.view.k === 'doc') { e.preventDefault(); const d = D(A.view.id); if (!isRO(d)) setMode(d, modeOf(d) === 'edit' || modeOf(d) === 'split' ? 'read' : 'edit'); return; }
+  if (c && !e.shiftKey && k === 'e' && A.view.k === 'doc') { e.preventDefault(); toggleLock(D(A.view.id)); return; }
   if (c && k === 'm' && A.view.k === 'doc') { e.preventDefault(); const d = D(A.view.id); setMode(d, modeOf(d) === 'mind' ? 'read' : 'mind'); return; }
   if (c && k === 'g' && A.camp) { e.preventDefault(); go({ k: 'graph' }); return; }
   if (c && k === '\\') { e.preventDefault(); A.prefs.right = !A.prefs.right; savePrefs(); renderRight(); return; }
   if (c && k === '.') { e.preventDefault(); toggleFocus(); return; }
-  if (c && e.shiftKey && k === 'e' && A.view.k === 'doc') { e.preventDefault(); const ta = $('.editor textarea'); PLAN.encounter(t => { if (ta) insertLines(ta, t); else { const d = D(A.view.id); d.body = d.body.replace(/\s*$/, '') + '\n\n' + t; touch(d); renderMain(); } }); return; }
+  if (c && e.shiftKey && k === 'e' && A.view.k === 'doc') { e.preventDefault(); PLAN.encounter(t => { const d = D(A.view.id); if (A.ed && !d.locked) A.ed.insertBlockMd(t.trim()); else { d.body = d.body.trimEnd() + String.fromCharCode(10, 10) + t; touch(d); renderMain(); } }); return; }
   if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); goBack(); return; }
   if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); goFwd(); return; }
-  if (e.key === 'Escape') { if ($('.menu')) closeMenu(); else if (A.prefs.focus && !inText) toggleFocus(false); hideHover(); acClose(); }
+  if (e.key === 'Escape') { if ($('.menu')) closeMenu(); else if (A.prefs.focus && !inText) toggleFocus(false); hideHover(); }
   if (!inText && (e.key === 'F1' || e.key === '?')) { e.preventDefault(); VIEWS.shortcuts(); }
 });
 document.addEventListener('mouseup', e => { if (e.button === 3) goBack(); if (e.button === 4) goFwd(); });
+// one rule everywhere: dragging empty space moves the view, along the way it can move. Documents and pages go up and
+// down; the timeline goes sideways; boards, maps, mind maps and the graph go every way (they handle their own).
+const PAN_EMPTY = '.docscroll, .page, .pagemain, .pagein, .home, .homein, .hcols, .hcol, .phead, .dtop, .dhero, .vwrap, .rbody, .welcome, .hero';
+document.addEventListener('pointerdown', e => {
+  if (e.button !== 0 || e.pointerType === 'touch' || !e.target.matches || !e.target.matches(PAN_EMPTY)) return;
+  const sc = e.target.closest('.docscroll, .pagemain, .home, .rbody'); if (!sc || sc.scrollHeight <= sc.clientHeight) return;
+  const y0 = e.clientY, t0 = sc.scrollTop; let on = false;
+  const mv = m => { const dy = m.clientY - y0; if (!on && Math.abs(dy) < 4) return; if (!on) { on = true; sc.classList.add('panning'); getSelection().removeAllRanges(); } sc.scrollTop = t0 - dy; };
+  const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); sc.classList.remove('panning'); };
+  addEventListener('pointermove', mv); addEventListener('pointerup', up);
+});
 function wireWindow() {
   const desk = window.desk;
   document.body.classList.toggle('desk', !!desk);
@@ -923,6 +856,8 @@ function wireWindow() {
   $('#focusBtn').onclick = () => toggleFocus();
   $('#skip').onclick = e => { e.preventDefault(); const t = $('#main .title, #main h1, #main'); t.focus(); };
   matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (A.prefs.theme === 'system') applyLook(); });
+  $('#gearBtn').onclick = () => go({ k: 'settings' });
+  $('#roleChip').onclick = () => go({ k: 'settings' });
   $('#tableChip').onclick = () => { A.prefs.right = true; A.prefs.rightTab = 'table'; savePrefs(); renderRight(); };
   TABLE.onChange(why => { paintChips(); if (why === 'state' || why === 'lobby') renderSide(); if (A.prefs.right) renderRightSoon(); if (why === 'ents' && A.view.k === 'doc' && modeOf(D(A.view.id) || { id: '', body: '' }) !== 'edit') refreshReaderSoon(); });
   // the side panels can be made wider or narrower
@@ -938,14 +873,14 @@ function wireWindow() {
 }
 function applyWidths() { document.documentElement.style.setProperty('--side-w', (A.prefs.sideW || 268) + 'px'); document.documentElement.style.setProperty('--right-w', (A.prefs.rightW || 320) + 'px'); }
 const renderRightSoon = debounce(() => renderRight(), 120);
-const refreshReaderSoon = debounce(() => { const d = A.view.k === 'doc' && D(A.view.id), r = $('#main .reader'); if (d && r) { const st = $('#main .docscroll').scrollTop; r.replaceWith(makeReader(d)); $('#main .docscroll').scrollTop = st; } }, 200);
+const refreshReaderSoon = debounce(() => { if (A.ed && !A.ed.root.contains(document.activeElement)) A.ed.render(); }, 200);
 function paintChips() {
   const T = TABLE.T, c = $('#tableChip'), s = $('#soundChip');
   c.className = 'chip ' + ({ on: 'ok', connecting: 'warn', error: 'bad', missing: 'bad' }[T.state] || '');
   c.querySelector('span').textContent = T.state === 'on' ? `Table ${T.code}` : T.state === 'connecting' ? 'Linking…' : T.state === 'off' ? 'No table linked' : 'Table not found';
   c.title = T.why || (T.state === 'on' ? 'Linked to the Critter table ' + T.code : 'Link this campaign to its Critter table to send things to it and take things from it');
   const snd = T.state === 'on' && T.sounds && Date.now() - (+T.sounds.ts || 0) < 36 * 3600e3;
-  s.hidden = T.state !== 'on'; s.className = 'chip ' + (snd && T.keyOk ? 'ok' : snd ? 'warn' : '');
+  s.hidden = T.state !== 'on' || SYNC.isPlayer(); s.className = 'chip ' + (snd && T.keyOk ? 'ok' : snd ? 'warn' : '');
   s.querySelector('span').textContent = snd ? (T.keyOk ? 'Sounds ready' : T.key ? 'Sounds: key out of date' : 'Sounds: no music key') : 'Sounds not seen';
   s.onclick = () => { A.prefs.right = true; A.prefs.rightTab = 'sounds'; savePrefs(); renderRight(); };
 }

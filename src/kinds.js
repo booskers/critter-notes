@@ -73,6 +73,10 @@ const ICON_PATHS = {
   focus: 'M8 3H5a2 2 0 0 0-2 2v3 M16 3h3a2 2 0 0 1 2 2v3 M8 21H5a2 2 0 0 1-2-2v-3 M16 21h3a2 2 0 0 0 2-2v-3',
   zin: 'M11 18.5a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15z M21 21l-4.6-4.6 M11 8v6 M8 11h6',
   zout: 'M11 18.5a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15z M21 21l-4.6-4.6 M8 11h6',
+  lock: 'M6 11h12v10H6z M8.5 11V7.5a3.5 3.5 0 0 1 7 0V11',
+  unlock: 'M6 11h12v10H6z M8.5 11V7.5a3.5 3.5 0 0 1 6.8-1.2',
+  hl: 'M9 11l-4 4v3h3l4-4 M15 5l4 4-7 7-4-4z M4 21h16',
+  gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
   table2: 'M3 5h18v14H3z M3 10h18 M9 5v14'
 };
 const icon = (name, cls) => `<svg class="ic${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICON_PATHS[name] || ICON_PATHS.note}"/></svg>`;
@@ -100,7 +104,7 @@ const FIELDS = {
   faction: [['leader', 'Led by', 'link'], ['base', 'Based at', 'link'], ['goal', 'Goal', 'text'], ['stance', 'Towards the party', 'sel', ['Allied', 'Friendly', 'Neutral', 'Wary', 'Hostile']], ['clock', 'Plan clock', 'clock']],
   item: [['kind', 'Kind', 'text'], ['rarity', 'Rarity', 'sel', ['Common', 'Uncommon', 'Rare', 'Very rare', 'Legendary', 'Artifact']], ['value', 'Value', 'text'], ['holder', 'Held by', 'link'], ['where', 'Found at', 'link']],
   lore: [['cat', 'Kind', 'text'], ['era', 'When', 'text']],
-  map: [['scale', 'Scale', 'text']],
+  map: [],
   event: [['when', 'When', 'wdate'], ['where', 'Where', 'link'], ['who', 'Who', 'text'], ['era', 'Era', 'text']],
   board: [],
   note: []

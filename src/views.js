@@ -3,22 +3,116 @@
 const VIEWS = (() => {
   const SOUND_KIND = { scene: 'scene', playlist: 'playlist', pad: 'pad', scape: 'soundscape' };
 
-  /* ============================== welcome ============================== */
+  /* ============================== the first start: whose campaign is it? ============================== */
   async function welcome(main) {
     main.className = 'welcome';
     const where = await STORE.vault().catch(() => ({ root: '' }));
+    const choice = (ic, title, text, ...body) => h('section', { class: 'wchoice' }, h('span', { class: 'wci', html: icon(ic) }), h('h2', { text: title }), h('p', { class: 'hint', text }), ...body);
+    const invite = h('input', { type: 'text', class: 'code', placeholder: '4SV6DJ-ABCDEFGHJK', 'aria-label': 'Invite code from the GM' });
+    const lobby = h('input', { type: 'text', class: 'code', placeholder: '4SV6DJ', 'aria-label': 'Lobby code' });
     main.append(h('div', { class: 'hero' },
       h('img', { class: 'heroicon', src: 'icon.svg', alt: '' }),
       h('h1', { text: 'Critter Notes' }),
-      h('p', { class: 'lead', text: 'Plan sessions, write your world, draw maps and mind maps, and send it all to your Critter table.' }),
-      h('div', { class: 'row center' }, btn('plus', 'Start a campaign', () => newCampaign(), 'primary big'), btn('lore', 'Open the sample campaign', () => sample(), 'big'), btn('upload', 'Restore a backup', () => restore(), 'ghost big')),
-      h('p', { class: 'hint', text: 'Coming from Obsidian or another notes app? Start a campaign, then import its Markdown files from the menu.' }),
+      h('p', { class: 'lead', text: 'Plan sessions, write your world, draw maps, boards and mind maps, and bring it all to your Critter table.' }),
+      h('div', { class: 'wchoices' },
+        choice('lore', 'Start my own campaign', 'You\'re the GM. It\'s kept on this computer, and you can share it with co-writers and players later.',
+          h('div', { class: 'row center wrap' }, btn('plus', 'Start a campaign', () => newCampaign(), 'primary'), btn(null, 'Look at a sample first', () => sample(), 'ghost'))),
+        choice('users', 'Write with someone', 'You help a GM write their campaign: you see and change everything. Ask them for the invite code (Settings › Sharing).',
+          h('div', { class: 'row' }, invite, btn(null, 'Join', async () => { try { await SYNC.joinWriter(invite.value); } catch (e) { toast(errText(e)); } }, 'primary'))),
+        choice('character', 'Join as a player', 'You see what your GM shares with you, and keep your own notes. They\'re your notes in Critter too.',
+          h('div', { class: 'row' }, lobby, btn(null, 'Next', () => pickPlayer(lobby.value), 'primary')))),
+      h('div', { class: 'row center wrap' }, btn('upload', 'Restore a backup', () => restore(), 'ghost tiny')),
       h('p', { class: 'hint', text: STORE.kind === 'files' ? `Campaigns are kept as plain files in ${where.root}.` : 'Campaigns are kept in this browser.' })));
+  }
+  async function pickPlayer(code) {
+    code = String(code || '').trim().toUpperCase(); if (!code) { toast('Enter the lobby code your GM gave you.'); return; }
+    let players; try { players = await SYNC.playersOf(code); } catch (e) { toast(errText(e)); return; }
+    if (!players.length) { toast('That table has no players set up yet. Your GM adds them in Critter (GM tools › Players).'); return; }
+    let pick = null; const pw = h('input', { type: 'password', placeholder: 'Password', 'aria-label': 'Password', hidden: true });
+    const list = h('div', { class: 'plist', role: 'radiogroup', 'aria-label': 'Which player are you?' }, ...players.map(p => h('label', { class: 'pchoice', style: `--c:${p.color || 'var(--accent)'}` }, h('input', { type: 'radio', name: 'pl', onchange: () => { pick = p; pw.hidden = !p.pw; if (p.pw) pw.focus(); } }), h('i'), h('span', { text: p.name }), p.pw ? h('small', { text: 'has a password' }) : null)));
+    const m = modal('Who are you at the table?', h('div', { class: 'form' }, list, pw), [btn(null, 'Cancel', () => m.close(), 'ghost'), btn('check', 'Join', async () => { if (!pick) { toast('Pick your player.'); return; } try { await SYNC.joinPlayer(code, pick, pw.value); m.close(); } catch (e) { toast(errText(e)); } }, 'primary')]);
+  }
+  function joinMenu(at) { menu([{ head: 'Join a campaign' }, { label: 'As a co-writer…', icon: 'users', fn: async () => { const c = await ask('The invite code from the GM', '', { placeholder: '4SV6DJ-ABCDEFGHJK', ok: 'Join' }); if (c) try { await SYNC.joinWriter(c); } catch (e) { toast(errText(e)); } } }, { label: 'As a player…', icon: 'character', fn: async () => { const c = await ask('The lobby code', '', { placeholder: '4SV6DJ', ok: 'Next' }); if (c) pickPlayer(c); } }], at); }
+
+  /* ============================== settings, said plainly ============================== */
+  const ACCENTS = ['#10b39b', '#2dd4bf', '#38bdf8', '#6366f1', '#a855f7', '#e879f9', '#f43f5e', '#f97316', '#f5a524', '#84cc16'];
+  function settings(main) {
+    main.className = 'pagemain';
+    const P = A.prefs, c = A.camp, wrap = h('div', { class: 'setin' });
+    const set = (k, v) => { P[k] = v; savePrefs(); applyLook(); };
+    const row = (label, text, ...ctl) => h('div', { class: 'setrow' }, h('div', { class: 'sl' }, h('b', { text: label }), text ? h('span', { text }) : null), h('div', { class: 'sc' }, ...ctl));
+    const pills = (cur, opts, fn, label) => h('div', { class: 'pills', role: 'radiogroup', 'aria-label': label }, ...opts.map(([v, l]) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(cur === v), class: cur === v ? 'on' : '', text: l, onclick: () => { fn(v); renderMain(); } })));
+    const sw = (on, fn, label) => h('label', { class: 'switch', title: label }, h('input', { type: 'checkbox', checked: on, 'aria-label': label, onchange: e => fn(e.target.checked) }), h('i'));
+    const colours = (k, def) => h('div', { class: 'swatches', role: 'radiogroup', 'aria-label': k === 'accent' ? 'Highlight colour' : 'Second colour' },
+      ...ACCENTS.map(col => h('button', { type: 'button', role: 'radio', 'aria-checked': String((P[k] || def) === col), 'aria-label': col, class: 'sw' + ((P[k] || def) === col ? ' on' : ''), style: `--c:${col}`, onclick: () => { set(k, col === def ? '' : col); renderMain(); } })),
+      h('input', { type: 'color', value: P[k] || def, 'aria-label': 'Any colour', title: 'Any colour', oninput: e => set(k, e.target.value) }));
+    const sec = (title, ...rows) => h('section', { class: 'setsec', 'aria-label': title }, h('h2', { text: title }), ...rows.filter(Boolean));
+    wrap.append(h('div', { class: 'phead' }, h('div', {}, h('h1', { text: 'Settings', tabIndex: -1 }), h('p', { class: 'hint', text: 'Everything here saves as you change it.' }))));
+    wrap.append(sec('Look',
+      row('Theme', 'Dark for the table at night, light for writing in daylight.', pills(P.theme, [['dark', 'Dark'], ['light', 'Light'], ['system', 'Like Windows']], v => set('theme', v), 'Theme')),
+      row('Highlight colour', 'Buttons, links, the things you\'re on.', colours('accent', '#10b39b')),
+      row('Second colour', 'Clocks, the world\'s today, Run.', colours('accent2', '#f5a524')),
+      row('Reading text', 'How big documents read.', pills(P.readSize, [['s', 'Small'], ['m', 'Medium'], ['l', 'Large'], ['xl', 'Larger']], v => set('readSize', v), 'Reading text size')),
+      row('Reading font', '', pills(P.readFont, [['serif', 'Book'], ['sans', 'Plain']], v => set('readFont', v), 'Reading font'))));
+    wrap.append(sec('Writing',
+      row('Suggest links while I write', 'When you type the name of another document, a small bubble offers to link it.', sw(P.suggest !== false, v => set('suggest', v), 'Suggest links')),
+      row('Lock documents when I leave them', 'A locked document can still be read, ticked and sent, but not changed by accident. The lock above a document opens it again.', sw(!!P.autoLock, v => set('autoLock', v), 'Lock documents when I leave them')),
+      row('Tips on the home page', '', sw(!P.noTips, v => set('noTips', !v), 'Tips on the home page'))));
+    if (c && !SYNC.isPlayer()) {
+      const name = h('input', { type: 'text', value: c.name, 'aria-label': 'Campaign name', onchange: async e => { c.name = e.target.value.trim() || c.name; await saveCamp(); renderSide(); } });
+      const sys = h('select', { 'aria-label': 'Game', onchange: async e => { c.sys = e.target.value; await saveCamp(); } }, ...Object.entries(SRD.SYSTEMS).map(([k, l]) => h('option', { value: k, text: l, selected: k === (c.sys || 'generic') })));
+      const world = h('select', { 'aria-label': 'Shared world', onchange: async e => { c.world = e.target.value; await saveCamp(); await PLAN.loadWorld(); reindex(); renderSide(); } }, h('option', { value: '', text: 'None' }), ...A.camps.filter(x => x.id !== c.id && !(x.share && x.share.role === 'player')).map(x => h('option', { value: x.id, text: x.name, selected: x.id === c.world })));
+      const cc = ['', '#2dd4bf', '#f5a524', '#60a5fa', '#e879f9', '#f87171', '#34d399', '#a78bfa'];
+      wrap.append(sec('This campaign',
+        row('Name', '', name),
+        row('Game', 'Decides which SRD items, monsters and spells Notes suggests. A linked table\'s game counts first.', sys),
+        row('Its colour', 'The dot beside its name.', h('div', { class: 'swatches' }, ...cc.map(x => h('button', { type: 'button', 'aria-label': x || 'Notes\' own', class: 'sw' + ((c.color || '') === x ? ' on' : ''), style: `--c:${x || 'var(--accent)'}`, onclick: async () => { c.color = x; await saveCamp(); renderMain(); renderSide(); } })))),
+        row('The world\'s calendar', 'Months, days and era, and the world\'s today.', btn('timeline', 'Calendar…', () => PLAN.calendarDialog(), 'tiny')),
+        row('Shared world', 'Another campaign whose documents this one can link to and read: a setting you run several campaigns in.', world)));
+    }
+    // the table and sharing
+    if (c) {
+      const T = TABLE.T, code = h('input', { type: 'text', class: 'code', value: c.table || '', placeholder: 'Lobby code or music code', 'aria-label': 'Critter table code', disabled: !!(c.share && c.share.on) });
+      const tableRows = [row('Critter table', T.state === 'on' ? `Linked to ${T.code} · ${SRD.SYSTEMS[TABLE.sys()] || TABLE.sys()} · ${plural(TABLE.players().length, 'player')}` : T.why || 'The lobby code links Notes to the table. The music code (from Critter\'s Music window) also lets Notes cue Critter Sounds.',
+        code, btn(null, T.state === 'on' && code.value === c.table ? 'Linked' : 'Link', async () => { c.table = code.value.trim(); await saveCamp(); if (c.table) await TABLE.connect(c.table); else TABLE.disconnect(); renderMain(); }, 'tiny' + (T.state === 'on' ? '' : ' primary')))];
+      if (window.CRITBOARD_DESKTOP) tableRows.push(row('Homebase', window.CRITBOARD_DESKTOP.server || 'Not chosen', btn(null, 'Change…', () => window.CRITBOARD_DESKTOP.changeHomebase(), 'tiny ghost')));
+      wrap.append(sec('The table', ...tableRows));
+      const sh = c.share || {}, shareRows = [];
+      if (SYNC.isPlayer()) shareRows.push(row(`You're ${sh.pname} at table ${sh.code}`, 'What the GM shares with you shows here, read only. Your notes are your notes in Critter.', btn(null, 'Leave the campaign', () => leave(), 'tiny ghost bad')));
+      else if (sh.on && sh.role === 'writer') shareRows.push(row('You write this campaign with its GM', `Table ${sh.code}. Everything you change reaches the GM and the other co-writers.`, btn(null, 'Leave', () => leave(), 'tiny ghost bad')));
+      else if (sh.on) {
+        const inv = h('code', { class: 'invite blur', text: SYNC.inviteCode(), tabIndex: 0, title: 'Click to show it', onclick: e => e.currentTarget.classList.remove('blur') });
+        shareRows.push(row('Shared', 'Co-writers see and change everything. Players see only the documents you open to them (the eye beside a document\'s kind), without secrets.', h('span', { class: 'chip ok' }, h('span', { text: SYNC.S.on ? 'Syncing' : 'Not syncing' }))),
+          row('Invite a co-writer', 'Give them this code. It also unlocks your secrets, so share it like a key.', inv, btn('copy', 'Copy', () => navigator.clipboard.writeText(SYNC.inviteCode()).then(() => toast('Copied the invite code.')), 'tiny')),
+          row('Players', `They join with the lobby code ${sh.code} and pick their player.`),
+          row('Stop sharing', 'Co-writers and players stop getting changes.', btn(null, 'Stop', async () => { await SYNC.unshare(false); renderMain(); }, 'tiny ghost'), btn(null, 'Stop and remove it from the table', async () => { if (await confirmBox('Remove it from the table?', 'The shared copy on the Homebase is deleted. Your own copy stays on this computer.', 'Remove it', true)) { await SYNC.unshare(true); renderMain(); } }, 'tiny ghost bad')));
+      } else shareRows.push(row('Write it together', TABLE.on() ? 'Share this campaign with co-writers (they see and change everything) and with players (they see what you open to them).' : 'Link the campaign to its Critter table first; sharing goes through the table.', btn('users', 'Share this campaign', async () => { if (await SYNC.share()) renderMain(); }, 'tiny primary')));
+      wrap.append(sec('Sharing', ...shareRows));
+    }
+    wrap.append(sec('Files',
+      c && !SYNC.isPlayer() ? row('Back up', 'One file with everything in this campaign, pictures too.', btn('download', 'Back up…', () => backup(), 'tiny'), btn('upload', 'Restore…', () => restore(), 'tiny ghost')) : null,
+      c && !SYNC.isPlayer() ? row('Markdown', 'Bring notes in from Obsidian or another app, or take a copy out.', btn('upload', 'Import files…', () => PLAN.importMd(false), 'tiny'), btn('folder', 'Import a folder…', () => PLAN.importMd(true), 'tiny ghost'), STORE.kind === 'files' ? btn('download', 'Export…', () => exportMd(), 'tiny ghost') : null) : null,
+      STORE.kind === 'files' ? row('Where campaigns are kept', '', btn('folder', 'Open the folder', () => STORE.openFolder(c ? c.id : undefined), 'tiny'), btn(null, 'Choose another…', () => vaultDialog(), 'tiny ghost')) : null));
+    wrap.append(sec('Help', row('Keyboard and writing', 'Every shortcut, and what the boxes and links in a document are.', btn('help', 'Show them', () => shortcuts(), 'tiny')), row('About Critter Notes', '', btn(null, 'About', () => about(), 'tiny ghost'))));
+    if (c && !SYNC.isPlayer()) wrap.append(sec('This campaign, for good', row('Delete this campaign', STORE.kind === 'files' ? 'Its folder goes to the recycle bin.' : 'It is deleted from this browser.', btn('trash', 'Delete…', () => deleteCampaign(), 'tiny ghost bad'))));
+    main.append(wrap);
+  }
+  async function deleteCampaign() {
+    const c = A.camp; if (!(await confirmBox('Delete the campaign?', `"${c.name}" and its ${plural(A.docs.size, 'document')} go ${STORE.kind === 'files' ? 'to the recycle bin' : 'for good'}.`, 'Delete it', true))) return;
+    await flush(); SYNC.stop(); await STORE.trashCampaign(c.id).catch(e => toast(errText(e)));
+    A.camps = A.camps.filter(x => x.id !== c.id); A.camp = null; TABLE.disconnect();
+    if (A.camps[0]) openCampaign(A.camps[0].id); else { A.docs = new Map(); A.view = { k: 'none' }; render(); }
+  }
+  async function leave() {
+    const c = A.camp; if (!(await confirmBox('Leave this campaign?', 'It is removed from this computer. You can join again with the code.', 'Leave', true))) return;
+    SYNC.stop(); await STORE.trashCampaign(c.id).catch(() => {}); A.camps = A.camps.filter(x => x.id !== c.id); A.camp = null; TABLE.disconnect();
+    if (A.camps[0]) openCampaign(A.camps[0].id); else { A.docs = new Map(); A.wdocs = new Map(); A.view = { k: 'none' }; render(); }
   }
 
   /* ============================== the campaign's home ============================== */
   function home(main) {
     main.className = 'home';
+    if (SYNC.isPlayer()) return playerHome(main);
     const all = [...A.docs.values()], sessions = sortedOf('session');
     const next = sessions.slice().reverse().find(s => (s.fields || {}).status !== 'Played') || sessions[sessions.length - 1];
     const wrap = h('div', { class: 'homein' });
@@ -62,6 +156,15 @@ const VIEWS = (() => {
       h('li', { html: '<b>Ctrl+K</b> finds anything. <b>Ctrl+.</b> hides everything but the page. <b>F1</b> lists every shortcut.' }))));
     main.append(wrap);
   }
+  function playerHome(main) {
+    const sh = A.camp.share, wrap = h('div', { class: 'homein' }), shared = [...A.wdocs.values()].sort((a, b) => b.updated - a.updated), mine = [...A.docs.values()].sort((a, b) => b.updated - a.updated);
+    wrap.append(h('div', { class: 'hhead' }, h('div', {}, h('div', { class: 'eyebrow', text: `Playing ${sh.pname} · table ${sh.code}` }), h('h1', { text: A.camp.name, tabIndex: -1 })), h('div', { class: 'grow' }), btn('plus', 'New note', () => newPlayerNote(), 'primary')));
+    const cols = h('div', { class: 'hcols' }), l = h('div', { class: 'hcol' }), r = h('div', { class: 'hcol' }); cols.append(l, r); wrap.append(cols);
+    const list = (docs, empty) => { const x = h('div', { class: 'list' }); docs.slice(0, 14).forEach(d => x.append(docRow(d, d.dm ? 'from the GM' : ago(d.updated)))); return docs.length ? x : h('p', { class: 'hint', text: empty }); };
+    l.append(card('Shared with you', list(shared, 'Nothing yet. When your GM opens a document to you, it shows here.')));
+    r.append(card('Your notes', list(mine, 'Your Critter notes show here. Write one with New note.')));
+    main.append(wrap);
+  }
   const card = (title, body) => h('section', { class: 'hcard' }, h('h2', { text: title }), body);
   const stat = (n, l) => h('div', { class: 'stat' }, h('b', { text: n }), h('span', { text: l }));
   const docRow = (d, sub) => h('button', { type: 'button', class: 'lrow', onclick: () => openDoc(d.id), style: `--c:${typeColor(d)}` }, h('span', { class: 'li', html: icon(TYPES[d.type].icon) }), h('span', { class: 'lt', text: d.title }), h('span', { class: 'ls', text: sub || '' }));
@@ -74,7 +177,7 @@ const VIEWS = (() => {
       ...Object.entries(TYPES).map(([t, x]) => h('button', { type: 'button', class: 'tchip' + (show[t] !== false ? ' on' : ''), style: `--c:${x.color}`, title: 'Show or hide ' + x.plural.toLowerCase(), onclick: () => { show[t] = show[t] === false; A.prefs.graphTypes = show; savePrefs(); renderMain(); } }, h('i'), x.plural)),
       h('label', { class: 'chk' }, h('input', { type: 'checkbox', checked: !!A.prefs.graphLonely, onchange: e => { A.prefs.graphLonely = e.target.checked; savePrefs(); renderMain(); } }), 'Unlinked too'));
     const host = h('div', { class: 'graphbox' }); main.append(bar, host);
-    const docs = [...A.docs.values()].filter(d => show[d.type] !== false), ids = new Set(docs.map(d => d.id)), edges = [], seen = new Set();
+    const docs = [...A.docs.values(), ...(SYNC.isPlayer() ? A.wdocs.values() : [])].filter(d => show[d.type] !== false), ids = new Set(docs.map(d => d.id)), edges = [], seen = new Set();
     for (const d of docs) {
       for (const t of outLinks(d)) if (ids.has(t)) { const k = [d.id, t].sort().join('|'); if (!seen.has(k)) { seen.add(k); edges.push([d.id, t]); } }
       if (d.parent && ids.has(d.parent)) { const k = [d.id, d.parent].sort().join('|'); if (!seen.has(k)) { seen.add(k); edges.push([d.id, d.parent]); } }
@@ -87,13 +190,15 @@ const VIEWS = (() => {
 
   /* ============================== the side panel ============================== */
   function renderRightPanel() {
-    const r = $('#right'); $('#rightToggle').disabled = A.view.k !== 'doc';
+    const r = $('#right'); $('#rightToggle').disabled = A.view.k !== 'doc' || ['board', 'map'].includes((D(A.view.id) || {}).type);
     // the panel is about the open document; elsewhere it stays out of the way
-    if (!A.camp || !A.prefs.right || A.view.k !== 'doc') { r.hidden = true; $('#rightToggle').classList.remove('on'); $('#rightToggle').setAttribute('aria-pressed', 'false'); return; }
+    const fullDoc = A.view.k === 'doc' && D(A.view.id) && ['board', 'map'].includes(D(A.view.id).type);
+    if (!A.camp || !A.prefs.right || A.view.k !== 'doc' || fullDoc) { r.hidden = true; $('#rightToggle').classList.remove('on'); $('#rightToggle').setAttribute('aria-pressed', 'false'); return; }
     $('#rightToggle').setAttribute('aria-pressed', 'true');
     r.hidden = false; $('#rightToggle').classList.add('on');
-    const tab = A.prefs.rightTab || 'links';
-    const TABS = [['links', 'Links', 'link'], ['table', 'Table', 'table'], ['sounds', 'Sounds', 'music']];
+    const tab = SYNC.isPlayer() ? 'links' : A.prefs.rightTab || 'links';
+    const TABS = SYNC.isPlayer() ? [['links', 'Links', 'link']] : [['links', 'Links', 'link'], ['table', 'Table', 'table'], ['sounds', 'Sounds', 'music']];
+    if (SYNC.isPlayer()) A.prefs.rightTab = 'links';
     const pick = k => { A.prefs.rightTab = k; savePrefs(); renderRightPanel(); const t = $('#rtab-' + k); if (t) t.focus(); };
     const tabs = h('div', { class: 'rtabs', role: 'tablist', 'aria-label': 'Side panel' }, ...TABS.map(([k, l, ic], i) => h('button', { type: 'button', id: 'rtab-' + k, role: 'tab', 'aria-selected': String(tab === k), 'aria-controls': 'rpanel', tabIndex: tab === k ? 0 : -1, class: 'rtab' + (tab === k ? ' on' : ''), onclick: () => pick(k),
       onkeydown: e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); pick(TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length][0]); } } }, h('span', { html: icon(ic), 'aria-hidden': 'true' }), l)));
@@ -174,8 +279,7 @@ const VIEWS = (() => {
     if (d && d.type === 'session') body.append(sec('This session'), h('div', { class: 'row' }, btn('log', 'Add the table\'s chat', () => pullChat(d), 'tiny')));
   }
   function insertInto(d, text) {
-    const ta = $('.editor textarea');
-    if (ta && A.view.k === 'doc' && A.view.id === d.id) { replaceSel(ta, text); return; }
+    if (A.ed && A.view.k === 'doc' && A.view.id === d.id && !d.locked) { A.ed.insertBlockMd(text); return; }
     d.body = d.body.replace(/\s*$/, '') + '\n\n' + text + '\n'; touch(d); renderMain(); toast('Added to the end of ' + d.title + '.');
   }
 
@@ -221,7 +325,11 @@ const VIEWS = (() => {
     const items = [{ head: 'Send to table ' + TABLE.T.code },
       { label: has('note', TABLE.T.gm) ? 'Update it in my Critter notebook' : 'To my Critter notebook', sub: 'For your eyes, secrets and all', icon: 'note', fn: () => send(d, 'note') },
       { label: has('handout', TABLE.T.gm) ? 'Update the handout' : 'As a handout, to show later', sub: 'Without secrets, clues or alternative paths', icon: 'send', fn: () => send(d, 'handout') },
-      { label: 'As a handout, shown to everyone now', icon: 'eye', fn: () => send(d, 'show') },
+      { label: 'To everyone\'s notes', sub: 'A handout every player gets now', icon: 'eye', fn: () => send(d, 'show') },
+      ...TABLE.players().map(p => ({ label: 'Whisper it to ' + p.name, sub: 'Only their notes', icon: 'character', fn: () => send(d, 'whisper', false, p.id) })),
+      { label: 'Send its text to the chat', icon: 'send', fn: () => say(`**${d.title}**
+
+${critterText(d, true)}`) },
       { label: d.live ? 'Stop keeping it shown' : 'Keep it shown, and up to date', sub: 'The players\' copy follows your changes', icon: 'refresh', check: !!d.live, fn: () => { d.live = !d.live; touch(d, true); if (d.live) send(d, 'show'); render(); } }];
     if (TABLE_KIND[d.type]) items.push({ label: (has('ent', TABLE.T.ents) || (d.table && d.table.lobby === TABLE.T.code && TABLE.T.ents.has(d.table.ent)) ? 'Update the ' : 'As an ') + (d.type === 'character' ? 'NPC' : 'item') + ' in the Library', sub: d.sheet ? 'With its game stats' : 'Its stats are added in Critter', icon: d.type === 'character' ? 'character' : 'item', fn: () => send(d, 'ent') });
     if (d.type === 'map') items.push({ label: s.scene && TABLE.scenes().some(x => x.id === s.scene) ? 'Update its scene' : 'As a new scene', sub: 'Hidden until you reveal it in Critter', icon: 'map', disabled: !(d.map && d.map.img), fn: () => send(d, 'scene') });
@@ -236,13 +344,26 @@ const VIEWS = (() => {
   }
   function copyForCritter(d) { navigator.clipboard.writeText(critterText(d, false)).then(() => toast('Copied. Paste it into a note in Critter.'), () => toast('Couldn\'t copy.')); }
   async function picUrl(d) { const f = d.img || (d.map && d.map.img) || MD.firstImage(d.body).replace(/^img:/, ''); return f && !/^https?:/.test(f) ? STORE.imageUrl(cid(), f) : ''; }
-  async function send(d, what, quiet) {
+  // words to the table: the chat, or a whisper to one player
+  async function say(md, pid) {
+    if (!TABLE.on()) { toast('Link the campaign to its table first (Settings › Table).'); return; }
+    const text = MD.toCritter(String(md || ''), { gm: true }).trim().slice(0, 2000); if (!text) return;
+    try { if (pid) { await TABLE.whisper(pid, text); toast('Whispered to ' + ((TABLE.players().find(p => p.id === pid) || {}).name || 'them') + '.'); } else { await TABLE.say(text); toast('Sent to the table chat.'); } }
+    catch (e) { toast('Could not send it: ' + errText(e)); }
+  }
+  async function send(d, what, quiet, pid) {
     if (!TABLE.on()) return;
     const code = TABLE.T.code; d.sent = d.sent || {}; const s = d.sent[code] = d.sent[code] || {};
     const say = toast; if (quiet) toast = () => {};
     try {
       toast('Sending…');
       if (what === 'note') { s.note = await TABLE.sendNote({ id: s.note, title: d.title, text: critterText(d, false), img: await picUrl(d) }); toast('It\'s in your notebook in Critter.'); }
+      else if (what === 'whisper') {
+        // a handout for one player: it goes into their notes only, and a whisper tells them so
+        s.handout = await TABLE.sendNote({ id: s.handout, title: d.title, text: critterText(d, true), img: await picUrl(d), handout: true, show: [pid] });
+        await TABLE.whisper(pid, `📜 I gave you a note: **${d.title}**. It's in your notes.`);
+        toast('Whispered to ' + ((TABLE.players().find(p => p.id === pid) || {}).name || 'them') + '. It\'s in their notes.');
+      }
       else if (what === 'handout' || what === 'show') { s.handout = await TABLE.sendNote({ id: s.handout, title: d.title, text: critterText(d, true), img: await picUrl(d), handout: true, show: what === 'show' }); toast(what === 'show' ? 'Shown to everyone. It\'s in their notes.' : 'The handout is ready in your Critter notebook. Show it from there when the time comes.'); }
       else if (what === 'ent') {
         const kind = TABLE_KIND[d.type], sys = TABLE.sys(), text = critterText(d, false);
@@ -345,7 +466,8 @@ const VIEWS = (() => {
     name.addEventListener('keydown', e => { if (e.key === 'Enter') go2(); });
     const m = modal('New campaign', h('div', { class: 'form' }, h('label', {}, 'Name', name), h('label', {}, 'Game', sys), h('label', {}, 'Critter table', code), h('p', { class: 'hint', text: 'The game decides which SRD items, monsters and spells [[ suggests. Linked to a table, the table\'s game counts.' })), [btn(null, 'Cancel', () => m.close(), 'ghost'), btn('plus', 'Create', go2, 'primary')]);
   }
-  async function campaignSettings() {
+  function campaignSettings() { go({ k: 'settings' }); }
+  async function campaignSettingsOld() {
     const c = A.camp; if (!c) return;
     const name = h('input', { type: 'text', value: c.name }), sys = sysSelect(c.sys), code = h('input', { type: 'text', value: c.table || '', placeholder: 'Lobby code or music code', class: 'code' });
     const colors = ['', '#2dd4bf', '#f5a524', '#60a5fa', '#e879f9', '#f87171', '#34d399', '#a78bfa'];
@@ -447,7 +569,8 @@ const VIEWS = (() => {
       [btn('folder', 'Open it', () => STORE.openFolder()), btn(null, 'Choose another folder…', async () => { const r = await STORE.pickVault(); if (r) { m.close(); await flush(); await loadCampaigns(); A.camp = null; if (A.camps[0]) openCampaign(A.camps[0].id); else render(); toast('Now using ' + r.root); } }, 'primary')]);
   }
   // how it looks and reads: theme, text size and font, the writing toolbar
-  function appearance() {
+  function appearance() { go({ k: 'settings' }); }
+  function appearanceOld() {
     const P = A.prefs, opt = (name, label, val, cur) => h('label', { class: 'radio' }, h('input', { type: 'radio', name, value: val, checked: cur === val }), label);
     const box = h('div', { class: 'form' },
       h('fieldset', {}, h('legend', { text: 'Theme' }), opt('th', 'Dark', 'dark', P.theme), opt('th', 'Light', 'light', P.theme), opt('th', 'As Windows is set', 'system', P.theme)),
@@ -674,6 +797,6 @@ The seventh lamp on the sea wall has gone out, and nobody will go near it.
     return new Promise(res => c.toBlob(res, 'image/png'));
   }
 
-  return { appearance, SOUND_KIND, welcome, home, graph, renderRightPanel, sendMenu, send, runBar, runLog, playCue, soundPicker, scenePicker, sceneToFile, entToDoc, srdToDoc, srdToTable, copyToCampaign, newCampaign, campaignSettings, pageMenu, command, shortcuts, about, sample };
+  return { settings, joinMenu, pickPlayer, say, appearance, SOUND_KIND, welcome, home, graph, renderRightPanel, sendMenu, send, runBar, runLog, playCue, soundPicker, scenePicker, sceneToFile, entToDoc, srdToDoc, srdToTable, copyToCampaign, newCampaign, campaignSettings, pageMenu, command, shortcuts, about, sample };
 })();
 function renderRight() { VIEWS.renderRightPanel(); }

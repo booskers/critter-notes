@@ -99,6 +99,8 @@ const MD = (() => {
       if (code !== undefined) return put(`<code>${esc(code)}</code>`);
       if (wiki !== undefined) return put(ctx && ctx.link ? ctx.link(linkInfo(wiki)) : esc(linkInfo(wiki).label || wiki));
       if (isrc !== undefined) return put(ctx && ctx.img ? ctx.img(isrc, ialt) : '');
+      if (lurl !== undefined && ctx && ctx.ext) return put(ctx.ext(ltext, lurl, all));
+      if (bare !== undefined && ctx && ctx.ext) return put(ctx.ext(bare.replace(/^https?:\/\//, '').slice(0, 60), bare, all));
       if (lurl !== undefined) return put(`<a href="${esc(lurl)}" class="ext" target="_blank" rel="noopener noreferrer">${esc(ltext)}</a>`);
       if (bare !== undefined) return put(`<a href="${esc(bare)}" class="ext" target="_blank" rel="noopener noreferrer">${esc(bare.replace(/^https?:\/\//, '').slice(0, 60))}</a>`);
       if (tag !== undefined) return pre + put(ctx && ctx.tag ? ctx.tag(tag) : `<span class="tag">#${esc(tag)}</span>`);
@@ -268,5 +270,13 @@ const MD = (() => {
     return { n: +m[1] || 1, s: m[2] === '%' ? 100 : +m[2], rows, title: b.head.slice(1).join(' · ') };
   }
 
-  return { esc, parse, render, rollTable, inline, plainInline, linkInfo, links, outline, tags, plain, toggleTask, tree, addChild, rename, toCritter, firstImage, slug, CALLOUTS, calloutKind };
+  // what players may read: without secrets, alternative paths, clues, encounters, treasure, scenes and open questions
+  const GM_ONLY = ['secret', 'branch', 'clue', 'combat', 'loot', 'question', 'scene', 'tip', 'warning'];
+  function forPlayers(src) {
+    const L = String(src || '').split('\n'), drop = new Set();
+    for (const b of parse(src)) if (b.t === 'callout' && GM_ONLY.includes(b.kind)) for (let i = b.line; i <= b.end; i++) drop.add(i);
+    return L.filter((l, i) => !drop.has(i)).join('\n').replace(/\n{3,}/g, '\n\n');
+  }
+
+  return { forPlayers, esc, parse, render, rollTable, inline, plainInline, linkInfo, links, outline, tags, plain, toggleTask, tree, addChild, rename, toCritter, firstImage, slug, CALLOUTS, calloutKind };
 })();

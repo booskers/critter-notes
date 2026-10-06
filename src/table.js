@@ -94,8 +94,11 @@ const TABLE = (() => {
         // the players' copies follow the handout, unless a player has changed theirs
         if (!x.pe && (x.text !== doc.text || x.title !== doc.title || x.img !== doc.img)) await T.db.doc(P('notes', c.id)).update({ title: doc.title, text: doc.text, img: doc.img });
       }
-      for (const p of players()) if (!have.has(p.id)) await T.db.doc(P('notes', 'n' + rand(14))).set({ owner: p.id, kind: 'note', dm: true, src: nid, title: doc.title, text: doc.text, img: doc.img, pos: now, ts: now, from: { t: 'dm', n: 'GM' } });
-      await T.db.doc(P('notes', nid)).update({ rev: 'all' });
+      // show: true for everyone, or a list of player ids (a whisper: only they get it)
+      const to = Array.isArray(show) ? players().filter(p => show.includes(p.id)) : players();
+      for (const p of to) if (!have.has(p.id)) await T.db.doc(P('notes', 'n' + rand(14))).set({ owner: p.id, kind: 'note', dm: true, src: nid, title: doc.title, text: doc.text, img: doc.img, pos: now, ts: now, from: { t: 'dm', n: 'GM' } });
+      const was = old.rev === 'all' ? 'all' : Array.isArray(old.rev) ? old.rev : [];
+      await T.db.doc(P('notes', nid)).update({ rev: Array.isArray(show) && was !== 'all' ? [...new Set([...was, ...show])] : 'all' });
     }
     return nid;
   }
@@ -141,6 +144,11 @@ const TABLE = (() => {
     return done;
   }
 
+  // a whisper from the GM to one player: Critter's lobbies/<code>/whispers/<id> { members, from, k, text, … }
+  async function whisper(pid, text) {
+    need();
+    await T.db.doc(P('whispers', 'w' + rand(16))).set({ k: 'msg', text: String(text).slice(0, 2000), members: ['gm', pid], from: 'gm', uid: 'critter-notes', n: 'GM', c: '#10b39b', ts: Date.now() });
+  }
   // a line in the table's chat, as the GM (from a random table, say)
   async function say(text) {
     need();
@@ -169,5 +177,5 @@ const TABLE = (() => {
     return out.sort((a, b) => a.ts - b.ts);
   }
 
-  return { T, parse, show, connect, disconnect, on, sys, players, scenes, sendNote, sendEnt, sendScene, cue, say, sceneImage, chatSince, jpeg, onChange: fn => { T.fns.add(fn); return () => T.fns.delete(fn); } };
+  return { T, parse, show, connect, disconnect, on, sys, players, scenes, sendNote, sendEnt, sendScene, cue, say, whisper, sceneImage, chatSince, jpeg, onChange: fn => { T.fns.add(fn); return () => T.fns.delete(fn); } };
 })();

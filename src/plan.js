@@ -105,31 +105,128 @@ const PLAN = (() => {
 
   /* ============================== pages ============================== */
   function pageHead(title, sub, ...tools) { return h('div', { class: 'phead' }, h('div', {}, h('h1', { text: title }), sub ? h('p', { class: 'hint', text: sub }) : null), h('span', { class: 'grow' }), ...tools); }
-  // the timeline: dated documents in the world's order, with today marked
+  // dates as a count of days, so the timeline can measure them
+  const DPY = () => cal().days.reduce((a, b) => a + b, 0);
+  function dayOf(w) { const c = cal(), m = Math.max(1, Math.min(c.months.length, +w.m || 1)); return (+w.y || 0) * DPY() + c.days.slice(0, m - 1).reduce((a, b) => a + b, 0) + Math.max(1, +w.d || 1) - 1; }
+  function fromDay(n) { const c = cal(), dpy = DPY(), y = Math.floor(n / dpy); let r = n - y * dpy, m = 0; while (m < c.days.length - 1 && r >= c.days[m]) { r -= c.days[m]; m++; } return { y, m: m + 1, d: Math.floor(r) + 1 }; }
+  function addMonths(w, n) { const c = cal(), L = c.months.length; let m = (+w.m || 1) - 1 + n, y = +w.y || 0; y += Math.floor(m / L); m = ((m % L) + L) % L; return { y, m: m + 1, d: Math.min(+w.d || 1, c.days[m]) }; }
+  const step = (w, unit, n) => (unit === 0 ? addDays(w, n) : unit === 1 ? addDays(w, 7 * n) : unit === 2 ? addMonths(w, n) : addMonths(w, 12 * n));
+  const UNITS = ['days', 'weeks', 'months', 'years'];
+
+  /* ---------- today in the world, as a flip clock ---------- */
+  // drag it right or left to move time; while dragging, the wheel changes the speed (days, weeks, months, years)
+  function flipClock(now, set) {
+    const c = cal(); let shown = now ? { ...now } : null;
+    const card = (cls, label) => h('div', { class: 'flip ' + cls }, h('span', { class: 'fv' }), h('small', { text: label }));
+    const D1 = card('fd', 'day'), M1 = card('fm', 'month'), Y1 = card('fy', 'year');
+    const hint = h('div', { class: 'fliphint', 'aria-hidden': 'true' });
+    const box = h('div', { class: 'flipclock', role: 'slider', tabIndex: 0, 'aria-label': 'Today in the world. Drag, or use the arrow keys (Page Up and Down for months, Shift for years)' }, D1, M1, Y1, hint);
+    const paint = () => {
+      if (!shown) { D1.firstChild.textContent = '–'; M1.firstChild.textContent = 'Not set'; Y1.firstChild.textContent = '–'; return; }
+      const v = [String(shown.d).padStart(2, '0'), c.months[shown.m - 1] || 'Month ' + shown.m, shown.y + (c.era ? ' ' + c.era : '')];
+      [D1, M1, Y1].forEach((x, i) => { const f = x.firstChild; if (f.textContent !== v[i]) { f.textContent = v[i]; x.classList.remove('turn'); void x.offsetWidth; x.classList.add('turn'); } });
+      box.setAttribute('aria-valuetext', wfmt(shown));
+    };
+    paint();
+    let drag = null;
+    box.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return; if (!shown) shown = { y: 1, m: 1, d: 1 };
+      e.preventDefault(); box.setPointerCapture(e.pointerId); box.classList.add('dragging');
+      drag = { x0: e.clientX, base: { ...shown }, unit: 0 }; hint.textContent = 'by ' + UNITS[0] + ' · the wheel changes the speed';
+    });
+    box.addEventListener('pointermove', e => { if (!drag) return; const n = Math.trunc((e.clientX - drag.x0) / 14); shown = step(drag.base, drag.unit, n); paint(); });
+    const end = () => { if (!drag) return; drag = null; box.classList.remove('dragging'); hint.textContent = ''; set(shown); };
+    box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
+    box.addEventListener('wheel', e => {
+      e.preventDefault();
+      if (!drag) { shown = step(shown || { y: 1, m: 1, d: 1 }, 0, e.deltaY < 0 ? 1 : -1); paint(); clearTimeout(box.wt); box.wt = setTimeout(() => set(shown), 500); return; }
+      // a faster or slower step from here on; what's already moved stays
+      drag.unit = Math.max(0, Math.min(3, drag.unit + (e.deltaY < 0 ? 1 : -1))); drag.base = { ...shown }; drag.x0 = e.clientX ?? drag.x0;
+      hint.textContent = 'by ' + UNITS[drag.unit] + ' · the wheel changes the speed';
+    }, { passive: false });
+    box.addEventListener('keydown', e => {
+      const k = { ArrowRight: [0, 1], ArrowLeft: [0, -1], ArrowUp: [0, 1], ArrowDown: [0, -1], PageUp: [2, 1], PageDown: [2, -1] }[e.key]; if (!k) return;
+      e.preventDefault(); shown = step(shown || { y: 1, m: 1, d: 1 }, e.shiftKey ? 3 : k[0], k[1]); paint(); clearTimeout(box.wt); box.wt = setTimeout(() => set(shown), 400);
+    });
+    return box;
+  }
+
+  /* ---------- the timeline, left to right ---------- */
+  const tlView = new Map();
   function timeline(main) {
-    main.className = 'pagemain';
-    const c = cal(), wrap = h('div', { class: 'pagein' });
-    const setNow = async w => { A.camp.cal = { ...(A.camp.cal || {}), now: w }; await saveCamp(); renderMain(); };
-    wrap.append(pageHead('Timeline', 'Events and sessions by their date in the world. Give a document a date with its "When" field.',
-      btn('edit', 'Calendar', calendarDialog, 'ghost'), btn('plus', 'New event', () => { const e = newDoc({ type: 'event', fields: c.now ? { when: { ...c.now } } : {} }); A.modes.set(e.id, 'edit'); openDoc(e.id); }, 'primary')));
-    wrap.append(h('div', { class: 'nowbar' }, h('span', { class: 'nowl', text: 'Today in the world' }), h('b', { text: c.now ? wfmt(c.now) : 'not set' }), h('span', { class: 'grow' }),
-      ...(c.now ? [['+1 day', 1], ['+1 week', 7], ['+1 month', c.days[(c.now.m || 1) - 1]]].map(([l, n]) => btn(null, l, () => setNow(addDays(c.now, n)), 'tiny ghost')) : [btn('clock', 'Set it', calendarDialog, 'tiny')])));
-    const items = [];
-    for (const d of A.docs.values()) for (const [k, , kind] of FIELDS[d.type] || []) if (kind === 'wdate' && has(d.fields && d.fields[k])) items.push({ d, w: d.fields[k] });
-    items.sort((a, b) => wkey(a.w) - wkey(b.w));
-    if (!items.length) { wrap.append(h('div', { class: 'emptybox' }, h('span', { html: icon('timeline') }), h('p', { text: 'Nothing has a date in the world yet. Make an event, or give a session its date "in the world".' }))); main.append(wrap); return; }
-    const list = h('ol', { class: 'tline' }); let year = null, nowPut = !c.now;
-    const nowRow = () => h('li', { class: 'tnow', 'aria-label': 'Today in the world: ' + wfmt(c.now) }, h('span', { text: 'Today · ' + wfmt(c.now) }));
-    for (const it of items) {
-      if (!nowPut && wkey(it.w) > wkey(c.now)) { list.append(nowRow()); nowPut = true; }
-      if (+it.w.y !== year) { year = +it.w.y; list.append(h('li', { class: 'tyear', text: year + (c.era ? ' ' + c.era : '') })); }
-      const txt = MD.plain(it.d.body).replace(/\s+/g, ' ').trim();
-      const fut = c.now && wkey(it.w) > wkey(c.now);
-      list.append(h('li', { class: 'titem' + (fut ? ' future' : '') }, h('button', { type: 'button', class: 'tcard', style: `--c:${typeColor(it.d)}`, onclick: () => openDoc(it.d.id) },
-        h('span', { class: 'tdate', text: wfmt(it.w, true) + (fut ? ' · to come' : '') }), h('span', { class: 'tic', html: icon(TYPES[it.d.type].icon) }), h('b', { text: it.d.title }), txt ? h('small', { text: txt.slice(0, 140) + (txt.length > 140 ? '…' : '') }) : null)));
+    main.className = 'pagemain tlmain';
+    const c = cal();
+    const setNow = async w => { A.camp.cal = { ...(A.camp.cal || {}), now: w }; await saveCamp(); paintNow(); };
+    const head = pageHead('Timeline', 'Drag to move along it, scroll to zoom, right-click to add an event on that day.',
+      btn('edit', 'Calendar', calendarDialog, 'ghost'), btn('plus', 'New event', () => { const e = newDoc({ type: 'event', fields: c.now ? { when: { ...c.now } } : {} }); openDoc(e.id); }, 'primary'));
+    const nowRow = h('div', { class: 'nowrow' }, h('span', { class: 'nowl', text: 'Today in the world' }), flipClock(c.now, setNow));
+    const area = h('div', { class: 'tlarea', role: 'region', 'aria-label': 'Timeline. Arrow keys move along it, plus and minus zoom.', tabIndex: 0 });
+    const axis = h('div', { class: 'tlaxis' }), ticks = h('div', { class: 'tlticks' }), items = h('div', { class: 'tlitems' }), nowLine = h('div', { class: 'tlnow' });
+    area.append(axis, ticks, nowLine, items);
+    main.append(h('div', { class: 'tltop' }, head, nowRow), area);
+    const list = [];
+    for (const d of [...A.docs.values(), ...(SYNC.isPlayer() ? A.wdocs.values() : [])]) for (const [k, , kind] of FIELDS[d.type] || []) if (kind === 'wdate' && has(d.fields && d.fields[k])) list.push({ d, w: d.fields[k], n: dayOf(d.fields[k]) });
+    list.sort((a, b) => a.n - b.n);
+    // the view: px per day, and which day sits at the left edge
+    let V = tlView.get(cid());
+    const fit = () => {
+      const W = area.clientWidth || 900, ns = list.map(x => x.n).concat(c.now ? [dayOf(c.now)] : []);
+      if (!ns.length) { V = { ppd: 600 / DPY(), left: dayOf(c.now || { y: 1, m: 1, d: 1 }) - DPY() / 2 }; return; }
+      const lo = Math.min(...ns), hi = Math.max(...ns), span = Math.max(30, hi - lo);
+      const ppd = (W - 380) / span; V = { ppd, left: lo - 90 / ppd };
+    };
+    if (!V) fit();
+    const x = n => (n - V.left) * V.ppd;
+    function paint() {
+      tlView.set(cid(), V);
+      const W = area.clientWidth, dpy = DPY(), ypx = dpy * V.ppd;
+      // ticks: months when there's room, else years in steps of 1, 2, 5, 10…
+      ticks.replaceChildren();
+      const leftDay = V.left, rightDay = V.left + W / V.ppd;
+      if (ypx > c.months.length * 70) {
+        let w = fromDay(Math.floor(leftDay)); w = { y: w.y, m: w.m, d: 1 };
+        for (let i = 0; i < 400; i++) { const n = dayOf(w); if (n > rightDay) break; ticks.append(h('div', { class: 'tick' + (w.m === 1 ? ' major' : ''), style: `left:${x(n)}px` }, h('span', { text: w.m === 1 ? `${c.months[0]} ${w.y}` : c.months[w.m - 1] }))); w = addMonths(w, 1); }
+      } else {
+        const stepY = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000].find(s => s * ypx >= 90) || 10000;
+        for (let y = Math.floor(leftDay / dpy / stepY) * stepY; y * dpy <= rightDay; y += stepY) ticks.append(h('div', { class: 'tick major', style: `left:${x(y * dpy)}px` }, h('span', { text: y + (c.era ? ' ' + c.era : '') })));
+      }
+      // today
+      if (c.now) { nowLine.hidden = false; nowLine.style.left = x(dayOf(cal().now)) + 'px'; nowLine.dataset.label = 'Today · ' + wfmt(cal().now, true); } else nowLine.hidden = true;
+      // the events, in lanes above and below the line so they don't cover each other
+      items.replaceChildren(); const lanes = [];
+      for (const it of list) {
+        const px = x(it.n); if (px < -260 || px > W + 40) continue;
+        let lane = lanes.findIndex(end => end < px - 8); if (lane < 0) { lane = lanes.length; lanes.push(0); } lanes[lane] = px + 210;
+        const up = lane % 2 === 0, depth = Math.floor(lane / 2), fut = c.now && it.n > dayOf(c.now);
+        const txt = MD.plain(it.d.body).replace(/\s+/g, ' ').trim();
+        const card = h('button', { type: 'button', class: 'tlcard' + (up ? ' up' : ' down') + (fut ? ' future' : ''), style: `left:${px}px;--lane:${depth};--c:${typeColor(it.d)}`, onclick: () => openDoc(it.d.id), title: it.d.title },
+          h('span', { class: 'tdate', text: wfmt(it.w, true) + (fut ? ' · to come' : '') }), h('span', { class: 'tlt' }, h('span', { class: 'tic', html: icon(TYPES[it.d.type].icon) }), h('b', { text: it.d.title })), txt ? h('small', { text: txt.slice(0, 80) + (txt.length > 80 ? '…' : '') }) : null);
+        items.append(h('div', { class: 'tlstem' + (up ? ' up' : ' down'), style: `left:${px}px;--lane:${depth};--c:${typeColor(it.d)}` }), card);
+      }
+      if (!list.length) items.append(h('p', { class: 'tlempty hint', text: 'Nothing has a date in the world yet. Right-click the line to add an event, or give a session its date "in the world".' }));
     }
-    if (!nowPut) list.append(nowRow());
-    wrap.append(list); main.append(wrap);
+    function paintNow() { const n = cal().now; nowRow.replaceChild(flipClock(n, setNow), nowRow.lastChild); paint(); }
+    // dragging the empty timeline moves along it; only sideways
+    area.addEventListener('pointerdown', e => {
+      if (e.button !== 0 || e.target.closest('.tlcard')) return;
+      const sx = e.clientX, l0 = V.left; area.setPointerCapture(e.pointerId); area.classList.add('grab');
+      const mv = m => { V = { ...V, left: l0 - (m.clientX - sx) / V.ppd }; paint(); };
+      const up = () => { area.removeEventListener('pointermove', mv); area.removeEventListener('pointerup', up); area.classList.remove('grab'); };
+      area.addEventListener('pointermove', mv); area.addEventListener('pointerup', up);
+    });
+    const zoomAt = (f, cx) => { const day = V.left + cx / V.ppd, ppd = Math.max(0.00002, Math.min(60, V.ppd * f)); V = { ppd, left: day - cx / ppd }; paint(); };
+    area.addEventListener('wheel', e => { e.preventDefault(); const r = area.getBoundingClientRect(); if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) { V = { ...V, left: V.left + (e.deltaX || e.deltaY) / V.ppd }; paint(); } else zoomAt(Math.exp(-e.deltaY * 0.0018), e.clientX - r.left); }, { passive: false });
+    area.addEventListener('keydown', e => { if (e.target !== area) return; const W = area.clientWidth; if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); V = { ...V, left: V.left + (e.key === 'ArrowRight' ? 1 : -1) * W * 0.2 / V.ppd }; paint(); } if (e.key === '+' || e.key === '=') zoomAt(1.3, W / 2); if (e.key === '-') zoomAt(1 / 1.3, W / 2); });
+    // right-click: an event on that day
+    area.addEventListener('contextmenu', async e => {
+      if (e.target.closest('.tlcard')) return; e.preventDefault();
+      const r = area.getBoundingClientRect(), w = fromDay(Math.round(V.left + (e.clientX - r.left) / V.ppd));
+      const t = await ask('What happens on ' + wfmt(w) + '?', '', { placeholder: 'The siege of Gallowmere', ok: 'Add the event' }); if (!t) return;
+      const ev = newDoc({ type: 'event', title: t, fields: { when: w } }); renderSide();
+      list.push({ d: ev, w, n: dayOf(w) }); list.sort((a, b) => a.n - b.n); paint(); toast(`"${ev.title}" is on the timeline.`, { label: 'Open it', fn: () => openDoc(ev.id) });
+    });
+    const ro = new ResizeObserver(() => paint()); ro.observe(area);
+    queueMicrotask(() => { if (!tlView.has(cid())) fit(); paint(); });
   }
   // the web of relationships
   function relsPage(main) {
@@ -328,5 +425,5 @@ const PLAN = (() => {
     i.click();
   }
 
-  return { cal, wfmt, wkey, has, addDays, wdateInput, calendarDialog, clockEl, clockText, allClocks, relsBox, timeline, relsPage, threads, clues, encounter, tableTools, rollTableAt, TABLE_SNIP, loadWorld, liveTouch, importMd };
+  return { flipClock, dayOf, cal, wfmt, wkey, has, addDays, wdateInput, calendarDialog, clockEl, clockText, allClocks, relsBox, timeline, relsPage, threads, clues, encounter, tableTools, rollTableAt, TABLE_SNIP, loadWorld, liveTouch, importMd };
 })();

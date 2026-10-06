@@ -16,14 +16,19 @@ const MAPV = (() => {
     bar.append(addBtn, tb('zin', 'Zoom in', () => zoomBy(1.3)), tb('zout', 'Zoom out', () => zoomBy(1 / 1.3)), tb('fit', 'Fit the map', fit));
     const listBtn = tb('list', 'All the pins', () => { list.hidden = !list.hidden; listBtn.classList.toggle('on', !list.hidden); drawList(); }); bar.append(listBtn);
     const list = el('div', 'mlist'); list.hidden = true;
-    host.append(stage, pinsL, bar, list, pop, tip);
+    const edge = (M.edge || 'blur');
+    stage.classList.add('edge-' + edge);
+    if (edge === 'blur') { const under = new Image(); under.className = 'munder'; under.alt = ''; under.draggable = false; stage.prepend(under); img.addEventListener('load', () => { under.src = img.src; }, { once: true }); }
+    if (edge === 'paper') { stage.append(el('div', 'mpaper')); img.style.clipPath = paperEdge(doc.id); stage.querySelector('.mpaper').style.clipPath = img.style.clipPath; }
+    const sbar = el('div', 'mscale'); sbar.setAttribute('aria-hidden', 'true');
+    host.append(stage, pinsL, bar, list, pop, tip, sbar);
     function setAdding(v) { adding = v; addBtn.classList.toggle('on', v); host.classList.toggle('adding', v); if (v) closePop(); }
     img.onload = () => { if (!M.w || !M.h || M.w !== img.naturalWidth) { M.w = img.naturalWidth; M.h = img.naturalHeight; } if (!view) fit(); else apply(); };
     img.src = o.url;
     const r = () => host.getBoundingClientRect();
     function fit() { const b = r(); if (!M.w) return; const k = Math.min((b.width - 24) / M.w, (b.height - 24) / M.h); view = { k, x: (b.width - M.w * k) / 2, y: (b.height - M.h * k) / 2 }; apply(); }
     function zoomBy(f, cx, cy) { const b = r(); if (cx === undefined) { cx = b.width / 2; cy = b.height / 2; } const k2 = Math.max(0.03, Math.min(8, view.k * f)); view = { k: k2, x: cx - (cx - view.x) * (k2 / view.k), y: cy - (cy - view.y) * (k2 / view.k) }; apply(); }
-    function apply() { if (!view) return; stage.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.k})`; stage.style.width = M.w + 'px'; stage.style.height = M.h + 'px'; drawPins(); if (o.onView) o.onView(view); }
+    function apply() { if (!view) return; paintScale(); stage.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.k})`; stage.style.width = M.w + 'px'; stage.style.height = M.h + 'px'; drawPins(); if (o.onView) o.onView(view); }
     const toScreen = p => ({ x: view.x + p.x * M.w * view.k, y: view.y + p.y * M.h * view.k });
     const fromEvent = e => { const b = r(); return { x: (e.clientX - b.left - view.x) / (M.w * view.k), y: (e.clientY - b.top - view.y) / (M.h * view.k) }; };
     function drawPins() {
@@ -115,10 +120,36 @@ const MAPV = (() => {
       const up = () => { host.removeEventListener('pointermove', mv); host.removeEventListener('pointerup', up); host.classList.remove('grab'); };
       host.addEventListener('pointermove', mv); host.addEventListener('pointerup', up);
     });
+    // the scale: a bar of a round distance, as long as fits at this zoom
+    function paintScale() {
+      const sc = M.scale || {}; if (!(+sc.w > 0) || !M.w) { sbar.hidden = true; return; }
+      const ppu = (M.w * view.k) / +sc.w; let best = null;
+      for (let p = -3; p <= 6; p++) for (const m of [1, 2, 5]) { const L = m * 10 ** p, px = L * ppu; if (px >= 70 && px <= 190 && !best) best = { L, px }; }
+      if (!best) { sbar.hidden = true; return; }
+      sbar.hidden = false; sbar.replaceChildren(el('i'), el('span', '', `${best.L.toLocaleString()} ${sc.unit || 'miles'}`)); sbar.firstChild.style.width = best.px + 'px';
+    }
+    // right-click the map: a pin there, and a search for what it leads to
+    host.addEventListener('contextmenu', async e => {
+      if (o.ro || e.target.closest('.mpop,.mbar,.mlist,.mpin')) return; e.preventDefault();
+      const q = fromEvent(e); if (q.x < 0 || q.y < 0 || q.x > 1 || q.y > 1) return;
+      const p = { id: 'p' + Math.random().toString(36).slice(2, 10), x: q.x, y: q.y, label: '', doc: '', color: '' };
+      M.pins.push(p); drawPins();
+      const x = await ED.pickDoc({ left: e.clientX, bottom: e.clientY }, '', doc.id, { title: 'What is here?', placeholder: 'What is here? Find a document or name a new place', types: ['location', 'character', 'faction', 'map', 'note'] });
+      if (!x) { M.pins = M.pins.filter(y => y !== p); drawPins(); return; }
+      p.doc = x.id; p.label = x.title; o.onChange(); drawPins();
+    });
     const ro = new ResizeObserver(() => { if (view) apply(); }); ro.observe(host);
     // a document dropped on the map becomes a pin where it lands
     function pinAt(e, docId, label) { if (!view) return; const q = fromEvent(e); if (q.x < 0 || q.y < 0 || q.x > 1 || q.y > 1) return; M.pins.push({ id: 'p' + Math.random().toString(36).slice(2, 10), x: q.x, y: q.y, label: label || '', doc: docId, color: '' }); o.onChange(); drawPins(); }
     return { fit, refresh: drawPins, adding: setAdding, pinAt };
+  }
+  // a torn, slightly uneven paper edge, the same for a map every time
+  function paperEdge(seed) {
+    let n = 0; for (const ch of seed) n = (n * 31 + ch.charCodeAt(0)) >>> 0;
+    const rnd = () => ((n = (n * 1664525 + 1013904223) >>> 0) / 4294967296), pts = [], side = (k, f) => { for (let i = 0; i < 40; i++) pts.push(f(i / 40, 0.4 + rnd() * 1.6)); };
+    side(0, (t, j) => `${(t * 100).toFixed(2)}% ${j.toFixed(2)}%`); side(1, (t, j) => `${(100 - j).toFixed(2)}% ${(t * 100).toFixed(2)}%`);
+    side(2, (t, j) => `${(100 - t * 100).toFixed(2)}% ${(100 - j).toFixed(2)}%`); side(3, (t, j) => `${j.toFixed(2)}% ${(100 - t * 100).toFixed(2)}%`);
+    return `polygon(${pts.join(',')})`;
   }
   function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
   function tb(ic, title, fn) { const b = el('button', 'ib'); b.type = 'button'; b.innerHTML = icon(ic); b.title = title; b.onclick = e => { e.stopPropagation(); fn(); }; return b; }

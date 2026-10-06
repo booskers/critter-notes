@@ -125,7 +125,7 @@ function appMenu() {
   const wc = win && win.webContents, send = k => () => wc && wc.send('key', k);
   return Menu.buildFromTemplate([
     { label: 'New campaign…', click: send('new-campaign') },
-    { label: 'Campaign settings…', click: send('campaign-settings') },
+    { label: 'Settings…', click: send('campaign-settings') },
     { label: 'Open the campaign folder', click: send('open-folder') },
     { label: 'Where campaigns are kept…', click: send('vault') },
     { type: 'separator' },
