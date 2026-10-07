@@ -7,6 +7,7 @@
 - Home can show the campaign's cover as a blurred background. With a table linked, Critter VTT's cover is used, and a picture chosen in Notes goes to a table that has none. Settings can turn it off.
 - Timeline: dragging it never selects text; today's line travels with the flip clock (the timeline zooms to the clock's pace); grab an event by its edge to move it to another day, with the old and new date shown above it.
 - The relationships and the graph show each document's picture (ringed in its kind's colour) or its kind's icon, and spread out so busy webs don't knot up.
+- Everything is saved as you type: within a second of a pause, and at least every few seconds while you keep typing (the title too), and at once when Notes loses focus or closes.
 - A font for dyslexia (OpenDyslexic, with more room between lines and words), as in Critter VTT.
 - The tour shows the notes drawer, and every card stays 12px inside the window at any size, beside what it explains.
 

@@ -143,12 +143,16 @@ const ED = (() => {
       if (!root.firstChild) root.innerHTML = '<p class="blk"><br></p>';
     }
     function commit() {
-      clearTimeout(t); if (locked || isRO(d)) return;
+      clearTimeout(t); typingSince = 0; if (locked || isRO(d)) return;
       normalize();
       const md = blocksMd(root) + '\n';
       if (md.trim() !== d.body.trim()) { d.body = md.trim() ? md : ''; touch(d); if (o.onChange) o.onChange(); }
     }
-    const soon = () => { clearTimeout(t); t = setTimeout(commit, 350); };
+    // what's typed reaches the document after a short pause, and at least every 2.5 s while typing goes on;
+    // the work (reading the page back into Markdown) waits for a moment the browser is idle, so typing never stutters
+    let typingSince = 0;
+    const idle = fn => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 400 }) : setTimeout(fn, 0));
+    const soon = () => { clearTimeout(t); const now = Date.now(); if (!typingSince) typingSince = now; t = setTimeout(() => idle(commit), now - typingSince > 2500 ? 0 : 600); };
     // rebuild from Markdown after a change in structure, and put the caret back in the n-th section
     function reflow(md, focusAt) {
       d.body = md.trim() ? md.replace(/\n{3,}/g, '\n\n').trim() + '\n' : ''; touch(d); render();

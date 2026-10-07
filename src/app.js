@@ -37,15 +37,17 @@ const D = id => A.docs.get(id) || A.wdocs.get(id);
 const isRO = d => !!d && !A.docs.has(d.id);
 
 /* ---------- saving ---------- */
-let saveT = 0;
+let saveT = 0, saveFirst = 0;
+// a debounce that still runs at least every `max` ms while calls keep coming
+const debounceMax = (fn, ms, max) => { let t = 0, first = 0; return (...a) => { clearTimeout(t); const now = Date.now(); if (!first) first = now; t = setTimeout(() => { first = 0; fn(...a); }, now - first > max ? 0 : ms); }; };
 function touch(doc, quiet) {
   if (!A.docs.has(doc.id)) return;
   histRecord(doc.id, snapOf(doc));
-  doc.updated = Date.now(); A.dirty.add(doc.id); clearTimeout(saveT); saveT = setTimeout(flush, 500); if (!quiet) reindexSoon();
+  doc.updated = Date.now(); A.dirty.add(doc.id); clearTimeout(saveT); if (!saveFirst) saveFirst = Date.now(); saveT = setTimeout(flush, Date.now() - saveFirst > 3000 ? 0 : 600); if (!quiet) reindexSoon();
   PLAN.liveTouch(doc); SYNC.dirty(doc);
 }
 async function flush() {
-  clearTimeout(saveT);
+  clearTimeout(saveT); saveFirst = 0;
   const ids = [...A.dirty]; A.dirty.clear();
   for (const id of ids) { const d = A.docs.get(id); if (!d) continue; try { await STORE.saveDoc(cid(), d); } catch (e) { A.dirty.add(id); toast('Could not save "' + d.title + '": ' + errText(e)); } }
 }
@@ -255,7 +257,7 @@ function go(view, replace) {
   // keyboard and screen reader users land at the top of what just opened
   if (!replace && document.activeElement && document.activeElement.closest && !document.activeElement.closest('#side,#main,#right')) setTimeout(() => { const t = $('#main h1, #main .title'); if (t && view.line === undefined) t.focus({ preventScroll: true }); }, 40);
 }
-const saveCampSoon = debounce(saveCamp, 800);
+const saveCampLater = debounceMax(() => { campPending = false; saveCamp(); }, 800, 3000), saveCampSoon = () => { campPending = true; saveCampLater(); };
 function goBack() { if (!A.back.length) return; A.fwd.push(A.view); A.view = A.back.pop(); render(); }
 function goFwd() { if (!A.fwd.length) return; A.back.push(A.view); A.view = A.fwd.pop(); render(); }
 const openDoc = (id, extra) => { if (D(id)) go({ k: 'doc', id, ...(extra || {}) }); };
@@ -509,7 +511,11 @@ function docHead(d, ro) {
   // and again once a web font (a font set, the dyslexia font) has arrived and made the title wider or narrower
   if (document.fonts) { document.fonts.ready.then(fit); setTimeout(fit, 900); }
   title.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); title.blur(); if (A.ed) A.ed.focus(); } if (e.key === 'Escape') { title.value = d.title; title.blur(); } });
-  title.addEventListener('blur', () => { if (!ro && title.value.trim() && title.value.trim() !== d.title) { renameDoc(d, title.value); title.value = d.title; paintTitle(); renderSide(); } else title.value = d.title; });
+  const keepTitle = () => { if (!ro && title.value.trim() && title.value.trim() !== d.title) { renameDoc(d, title.value); if (document.activeElement !== title) title.value = d.title; paintTitle(); renderSide(); } };   // (while it's being typed in, the box is left alone)
+  const titleSoon = debounce(keepTitle, 1200);
+  title.addEventListener('input', () => { if (!ro) titleSoon(); });
+  title.addEventListener('commit-title', keepTitle);
+  title.addEventListener('blur', () => { keepTitle(); title.value = d.title; });
   const kind = h('button', { type: 'button', class: 'kindchip', style: `--c:${typeColor(d)}`, disabled: ro, title: ro ? '' : 'Change what kind of document this is', 'aria-label': `Kind: ${TYPES[d.type].name}${ro ? '' : '. Change it'}`, onclick: e => kindMenu(d, e.currentTarget) }, h('span', { html: icon(TYPES[d.type].icon) }), h('span', { text: TYPES[d.type].name }));
   const words = h('div', { class: 'dtitle' }, h('div', { class: 'dchips' }, kind, SYNC.isWriter() && SYNC.S.on && !ro ? accessChip(d) : null), title);
   if (d.img) {
@@ -952,6 +958,17 @@ document.addEventListener('contextmenu', e => {
     { label: 'Settings', icon: 'gear', fn: () => go({ k: 'settings' }) }].filter(Boolean), at);
 });
 
+// everything not yet written, written now: the open document's last keystrokes, the title being typed, the campaign
+async function saveAllNow() {
+  if (A.ed) A.ed.commit();
+  const t = document.activeElement; if (t && t.matches && t.matches('textarea.title')) t.dispatchEvent(new Event('commit-title'));
+  await flush(); if (A.camp && campPending) await saveCamp();
+}
+let campPending = false;
+addEventListener('blur', () => { saveAllNow().catch(() => {}); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveAllNow().catch(() => {}); });
+addEventListener('pagehide', () => { saveAllNow().catch(() => {}); });
+
 /* ============================== campaigns ============================== */
 async function loadCampaigns() { A.camps = (await STORE.listCampaigns().catch(() => [])).sort((a, b) => (b.updated || 0) - (a.updated || 0)); }
 async function openCampaign(id) {
@@ -1023,7 +1040,7 @@ function wireWindow() {
     $('#titlebar').addEventListener('dblclick', e => { if (!e.target.closest('button')) desk.winCmd('max'); });
     desk.onWinState(s => { document.body.classList.toggle('wmax', !!s.max); document.body.classList.toggle('wblur', !s.focus); document.body.classList.toggle('wfull', !!s.full); });
     desk.onKey(k => VIEWS.command(k));
-    desk.onCloseAsked(async () => { await flush().catch(() => {}); desk.quitOk(); });
+    desk.onCloseAsked(async () => { await saveAllNow().catch(() => {}); desk.quitOk(); });
   } else addEventListener('beforeunload', e => { if (A.dirty.size) { flush(); e.preventDefault(); } });
   $('#backBtn').onclick = goBack; $('#fwdBtn').onclick = goFwd;
   $('#campBtn').onclick = e => campaignMenu(e.currentTarget);
