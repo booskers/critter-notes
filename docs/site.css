@@ -1,0 +1,137 @@
+/* The Critter websites: one stylesheet for Critter VTT, Critter Sounds and Critter Notes.
+   Each page sets --accent and --accent-2 (the app's two colours); the rest follows the design system:
+   elevation by lightness instead of outlines, glows only on hover, Atkinson Hyperlegible Next. */
+@font-face{font-family:"Atkinson Hyperlegible Next";font-style:normal;font-weight:200 800;font-display:swap;src:url(fonts/atkinson-latin.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2190-2199,U+2212,U+2215}
+@font-face{font-family:"Atkinson Hyperlegible Next";font-style:normal;font-weight:200 800;font-display:swap;src:url(fonts/atkinson-latin-ext.woff2) format("woff2");unicode-range:U+0100-02AF,U+0304,U+0308,U+0329,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+:root{
+  --tone:color-mix(in oklab,#0c0d10,var(--accent) 4%);
+  --s0:var(--tone);
+  --s1:color-mix(in oklab,var(--tone),white 3.5%);
+  --s2:color-mix(in oklab,var(--tone),white 6.5%);
+  --s3:color-mix(in oklab,var(--tone),white 9.5%);
+  --s4:color-mix(in oklab,var(--tone),white 13%);
+  --ink:color-mix(in oklab,white 93%,var(--tone));
+  --ink-2:color-mix(in oklab,white 76%,var(--tone));
+  --ink-3:color-mix(in oklab,white 66%,var(--tone));
+  --accent-text:color-mix(in oklab,var(--accent),white 30%);
+  --accent-2-text:color-mix(in oklab,var(--accent-2),white 20%);
+  --accent-soft:color-mix(in oklab,var(--accent) 16%,transparent);
+  --on-accent:#fff;
+  --r-md:10px;--r-lg:14px;--r-xl:18px;--r-2xl:26px;
+  --font:"Atkinson Hyperlegible Next","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --shadow:0 10px 30px rgb(0 0 0/.35),0 2px 6px rgb(0 0 0/.25);
+  --shadow-big:0 30px 80px rgb(0 0 0/.55),0 6px 18px rgb(0 0 0/.35);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--s0);color:var(--ink);font:400 18px/1.6 var(--font);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;background:
+  radial-gradient(900px 600px at 12% -10%,color-mix(in oklab,var(--accent) 16%,transparent),transparent 70%),
+  radial-gradient(800px 600px at 95% 5%,color-mix(in oklab,var(--accent-2) 11%,transparent),transparent 70%)}
+a{color:var(--accent-text)}
+img{max-width:100%;height:auto;display:block}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+:focus-visible{outline:3px solid var(--accent-text);outline-offset:3px;border-radius:6px}
+
+/* "Check out also": the other two apps, in a slim strip above the header */
+.promo{background:var(--s1);font-size:14.5px}
+.promo .wrap{display:flex;align-items:center;justify-content:center;gap:8px 18px;min-height:40px;flex-wrap:wrap;padding-top:6px;padding-bottom:6px}
+.promo .lbl{color:var(--ink-2)}
+.promo a{display:inline-flex;align-items:center;gap:8px;text-decoration:none;color:var(--ink);font-weight:700;padding:3px 10px 3px 4px;border-radius:999px;transition:background .15s,box-shadow .15s}
+.promo a img{width:22px;height:22px;border-radius:6px}
+.promo a .what{color:var(--ink-2);font-weight:400}
+.promo a:hover{background:var(--s3);box-shadow:0 0 0 1px color-mix(in oklab,var(--c) 45%,transparent),0 0 18px color-mix(in oklab,var(--c) 35%,transparent)}
+.promo a b{color:color-mix(in oklab,var(--c),white 25%)}
+
+nav.top{position:sticky;top:0;z-index:10;background:color-mix(in oklab,var(--s0) 82%,transparent);backdrop-filter:blur(14px)}
+nav.top .wrap{display:flex;align-items:center;gap:24px;height:64px}
+nav.top .brand img{height:30px;width:auto}
+nav.top .links{margin-left:auto;display:flex;gap:6px;font-size:16px}
+nav.top .links a{text-decoration:none;color:var(--ink-2);padding:7px 12px;border-radius:var(--r-md)}
+nav.top .links a:hover{color:var(--ink);background:var(--s2)}
+
+.hero{padding:72px 0 40px;text-align:center}
+.hero .logo{height:76px;width:auto;margin:0 auto 30px}
+h1{font:700 clamp(38px,5.6vw,66px)/1.05 var(--font);letter-spacing:-.02em;margin:0 auto 18px;max-width:920px}
+h1 em{font-style:normal;color:var(--accent-text)}
+.lede{font-size:clamp(18px,2vw,21px);color:var(--ink-2);max-width:760px;margin:0 auto 32px}
+.ctas{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:10px;padding:13px 22px;border-radius:var(--r-md);font-weight:700;font-size:17px;text-decoration:none;color:var(--ink);background:var(--s3);transition:transform .15s,box-shadow .2s,background .15s}
+.btn svg{width:19px;height:19px;flex:none}
+.btn:hover{transform:translateY(-1px);background:var(--s4)}
+.btn.primary{background:var(--accent);color:var(--on-accent);box-shadow:inset 0 1px 0 rgb(255 255 255/.25)}
+.btn.primary:hover{box-shadow:inset 0 1px 0 rgb(255 255 255/.25),0 0 28px color-mix(in oklab,var(--accent) 55%,transparent)}
+.note{font-size:14.5px;color:var(--ink-3);margin-top:14px}
+.shot{margin:52px auto 0;position:relative}
+.shot img,.media img{border-radius:var(--r-xl);box-shadow:var(--shadow-big)}
+figure{margin:0}
+figcaption{font-size:14.5px;color:var(--ink-3);margin-top:14px;text-align:center}
+
+section{padding:88px 0}
+section.alt{background:color-mix(in oklab,var(--s1) 70%,transparent)}
+.eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:13.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-text)}
+.eyebrow.two{color:var(--accent-2-text)}
+h2{font:700 clamp(30px,4vw,46px)/1.1 var(--font);letter-spacing:-.015em;margin:12px 0 14px}
+.sub{color:var(--ink-2);font-size:19px;max-width:680px;margin:0 0 30px}
+.split{display:grid;grid-template-columns:1fr 1.25fr;gap:52px;align-items:center}
+.split.rev{grid-template-columns:1.25fr 1fr}
+.split.rev .media{order:-1}
+.split.phone{grid-template-columns:1fr 340px}
+.split.phone .media img{max-height:640px;width:auto;margin:0 auto}
+ul.ticks{list-style:none;padding:0;margin:0;display:grid;gap:12px}
+ul.ticks li{padding-left:32px;position:relative;color:var(--ink-2)}
+ul.ticks li b{color:var(--ink)}
+ul.ticks li::before{content:"";position:absolute;left:0;top:5px;width:20px;height:20px;border-radius:6px;background:var(--accent-soft)}
+ul.ticks li::after{content:"";position:absolute;left:5px;top:10px;width:10px;height:6px;border-left:2.5px solid var(--accent-text);border-bottom:2.5px solid var(--accent-text);transform:rotate(-45deg)}
+
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.card{background:var(--s2);border-radius:var(--r-lg);padding:22px;transition:background .15s,box-shadow .2s}
+.card:hover{background:var(--s3);box-shadow:0 0 0 1px color-mix(in oklab,var(--accent) 30%,transparent),0 0 26px color-mix(in oklab,var(--accent) 18%,transparent)}
+.card h3{margin:0 0 6px;font-size:18.5px}
+.card p{margin:0;color:var(--ink-2);font-size:16px}
+.card .ic{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;margin-bottom:14px;background:var(--accent-soft);color:var(--accent-text)}
+.card .ic svg{width:22px;height:22px}
+.card.two .ic{background:color-mix(in oklab,var(--accent-2) 16%,transparent);color:var(--accent-2-text)}
+
+/* the Critter family: the three apps side by side */
+.family{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.fam{background:var(--s2);border-radius:var(--r-xl);padding:26px;display:flex;flex-direction:column;gap:12px;text-decoration:none;color:inherit;transition:background .15s,box-shadow .2s,transform .15s}
+.fam img.lg{height:40px;width:auto;align-self:flex-start}
+.fam p{margin:0;color:var(--ink-2);font-size:16px}
+.fam .go{margin-top:auto;font-weight:700;color:color-mix(in oklab,var(--c),white 25%)}
+a.fam:hover{background:var(--s3);transform:translateY(-2px);box-shadow:0 0 0 1px color-mix(in oklab,var(--c) 40%,transparent),0 0 30px color-mix(in oklab,var(--c) 22%,transparent)}
+.fam.here{background:color-mix(in oklab,var(--s2),var(--accent) 7%)}
+.fam .here-tag{font-size:13px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+
+.dl{display:grid;grid-template-columns:1.2fr 1fr;gap:16px}
+.dlcard{background:var(--s2);border-radius:var(--r-xl);padding:32px;display:flex;flex-direction:column;gap:14px}
+.dlcard.main{background:linear-gradient(160deg,color-mix(in oklab,var(--accent) 15%,var(--s2)),var(--s2) 60%)}
+.dlcard h3{margin:0;font-size:24px}
+.dlcard p{margin:0;color:var(--ink-2)}
+.dlcard .row{display:flex;gap:12px;flex-wrap:wrap;margin-top:auto;padding-top:6px}
+.small{font-size:15px;color:var(--ink-3)}
+code{font:.9em "Cascadia Mono",Consolas,ui-monospace,monospace;background:var(--s3);border-radius:6px;padding:1px 6px}
+
+footer{padding:40px 0 56px;color:var(--ink-3);font-size:15px}
+footer .wrap{display:flex;gap:16px 28px;flex-wrap:wrap;justify-content:space-between}
+footer a{color:var(--ink-2)}
+
+@media (max-width:920px){
+  .split,.split.rev,.split.phone{grid-template-columns:1fr;gap:32px}
+  .split.rev .media{order:0}
+  .grid,.family{grid-template-columns:1fr 1fr}
+  .dl{grid-template-columns:1fr}
+  nav.top .links a.hide-s{display:none}
+}
+@media (max-width:600px){
+  .wrap{padding:0 16px}
+  body{font-size:17px}
+  .grid,.family{grid-template-columns:1fr}
+  .hero{padding:48px 0 24px}.hero .logo{height:52px}
+  section{padding:60px 0}
+  .promo a .what{display:none}
+  nav.top .links{gap:0}
+  .dlcard{padding:24px}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
