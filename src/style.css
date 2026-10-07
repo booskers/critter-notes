@@ -1001,3 +1001,10 @@ body.touring #hov{z-index:2150}
 .tlmove .was{color:var(--faint);text-decoration:line-through}
 .tlmove b{color:var(--accent-hi,var(--accent))}
 @media (prefers-reduced-motion:reduce){.tlnow{transition:none}}
+/* the undo history */
+.histlist{display:grid;gap:2px;max-height:min(56vh,520px);overflow:auto;margin-top:10px}
+.histrow{display:flex;align-items:baseline;gap:12px;padding:8px 10px;border:0;border-radius:8px;background:none;color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.histrow:hover{background:var(--hover)}
+.histrow.now{cursor:default;color:var(--accent-hi,var(--accent));font-weight:650}.histrow.now:hover{background:none}
+.histrow .hl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.histrow .ht{color:var(--faint);font-size:12px;white-space:nowrap}

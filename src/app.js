@@ -40,6 +40,7 @@ const isRO = d => !!d && !A.docs.has(d.id);
 let saveT = 0;
 function touch(doc, quiet) {
   if (!A.docs.has(doc.id)) return;
+  histRecord(doc.id, snapOf(doc));
   doc.updated = Date.now(); A.dirty.add(doc.id); clearTimeout(saveT); saveT = setTimeout(flush, 500); if (!quiet) reindexSoon();
   PLAN.liveTouch(doc); SYNC.dirty(doc);
 }
@@ -48,7 +49,92 @@ async function flush() {
   const ids = [...A.dirty]; A.dirty.clear();
   for (const id of ids) { const d = A.docs.get(id); if (!d) continue; try { await STORE.saveDoc(cid(), d); } catch (e) { A.dirty.add(id); toast('Could not save "' + d.title + '": ' + errText(e)); } }
 }
-async function saveCamp() { if (!A.camp) return; A.camp.updated = Date.now(); try { await STORE.saveCampaign(A.camp); } catch (e) { toast('Could not save the campaign: ' + errText(e)); } SYNC.campDirty(); }
+async function saveCamp() { if (!A.camp) return; histRecord('#camp', campSnap()); A.camp.updated = Date.now(); try { await STORE.saveCampaign(A.camp); } catch (e) { toast('Could not save the campaign: ' + errText(e)); } SYNC.campDirty(); }
+
+/* ---------- the undo history: every change to a document (and to the campaign) can be undone and redone from anywhere ---------- */
+// each step keeps the before and after of what it changed; typing in one document within 1.5 s is one step;
+// how many steps are kept is a setting (A.prefs.undoSteps). Text fields keep their own Ctrl+Z while you type in them.
+const HIST = { undo: [], redo: [], snap: new Map(), quiet: 0, batch: null };
+const histMax = () => Math.max(10, Math.min(1000, +A.prefs.undoSteps || 100));
+const snapOf = d => JSON.stringify(d, (k, v) => (k === 'updated' ? undefined : v));
+const campSnap = () => (A.camp ? JSON.stringify(A.camp, (k, v) => (k === 'updated' || k === 'last' ? undefined : v)) : null);
+function histReset() { HIST.undo = []; HIST.redo = []; HIST.snap = new Map(); for (const d of A.docs.values()) HIST.snap.set(d.id, snapOf(d)); HIST.snap.set('#camp', campSnap()); }
+function histLabel(ch) {
+  if (ch.id === '#camp') return 'Change the campaign';
+  const b = ch.before && JSON.parse(ch.before), a = ch.after && JSON.parse(ch.after), t = (a || b || {}).title || 'a document';
+  if (!b) return `Create "${t}"`;
+  if (!a) return `Delete "${t}"`;
+  if (b.title !== a.title) return `Rename "${b.title}" to "${a.title}"`;
+  if (b.body !== a.body) return `Write in "${t}"`;
+  if (JSON.stringify(b.fields) !== JSON.stringify(a.fields)) return `Change the details of "${t}"`;
+  if (JSON.stringify(b.board) !== JSON.stringify(a.board)) return `Change the board "${t}"`;
+  if (JSON.stringify(b.map) !== JSON.stringify(a.map)) return `Change the map "${t}"`;
+  return `Change "${t}"`;
+}
+function histRecord(id, after) {
+  if (HIST.quiet) { HIST.snap.set(id, after); return; }
+  const before = HIST.snap.has(id) ? HIST.snap.get(id) : null;
+  if (before === after) return;
+  HIST.snap.set(id, after);
+  const ch = { id, before, after };
+  if (HIST.batch) { const same = HIST.batch.find(c => c.id === id); if (same) same.after = after; else HIST.batch.push(ch); return; }
+  const top = HIST.undo[HIST.undo.length - 1], now = Date.now();
+  // more typing in the same document a moment later joins the step before
+  if (top && top.changes.length === 1 && top.changes[0].id === id && top.changes[0].after === before && before && after && now - top.t < 1500 && !top.closed) { top.changes[0].after = after; top.t = now; top.label = histLabel(top.changes[0]); }
+  else { HIST.undo.push({ changes: [ch], t: now, label: histLabel(ch) }); if (HIST.undo.length > histMax()) HIST.undo.splice(0, HIST.undo.length - histMax()); }
+  HIST.redo = [];
+}
+// several changes as one step (a delete that moves its children, a tidy-up)
+function histGroup(label, fn) {
+  const outer = !HIST.batch; if (outer) HIST.batch = [];
+  const done = () => { if (!outer) return; const ch = HIST.batch; HIST.batch = null; if (ch.length) { HIST.undo.push({ changes: ch, t: Date.now(), label: label || histLabel(ch[0]) }); if (HIST.undo.length > histMax()) HIST.undo.splice(0, HIST.undo.length - histMax()); HIST.redo = []; } };
+  let r; try { r = fn(); } catch (e) { done(); throw e; }
+  if (r && typeof r.then === 'function') return r.finally(done);
+  done(); return r;
+}
+async function histApply(id, state) {
+  if (id === '#camp') { if (!A.camp || !state) return; const o = JSON.parse(state); for (const k of Object.keys(A.camp)) if (k !== 'updated' && k !== 'last' && !(k in o)) delete A.camp[k]; Object.assign(A.camp, o); HIST.snap.set(id, state); await saveCamp(); return; }
+  if (state === null) { if (A.docs.has(id)) { A.docs.delete(id); A.dirty.delete(id); SYNC.removed(id); await STORE.trashDoc(cid(), id).catch(() => {}); } HIST.snap.delete(id); return; }
+  const o = JSON.parse(state); let d = A.docs.get(id);
+  if (d) { for (const k of Object.keys(d)) delete d[k]; Object.assign(d, o); } else { d = o; A.docs.set(id, d); }
+  d.updated = Date.now(); A.dirty.add(id); SYNC.dirty(d); HIST.snap.set(id, state);
+}
+async function histStep(dir) {
+  if (A.ed) A.ed.commit();
+  const from = dir < 0 ? HIST.undo : HIST.redo, to = dir < 0 ? HIST.redo : HIST.undo, e = from.pop();
+  if (!e) { toast(dir < 0 ? 'Nothing to undo.' : 'Nothing to redo.'); return; }
+  e.closed = true; HIST.quiet++;
+  try { for (const c of dir < 0 ? [...e.changes].reverse() : e.changes) await histApply(c.id, dir < 0 ? c.before : c.after); }
+  finally { HIST.quiet--; }
+  to.push(e);
+  await flush(); reindex(); renderSide();
+  const v = A.view; if (v.k === 'doc' && !D(v.id)) go({ k: 'home' }, true); else renderMain();
+  toast((dir < 0 ? 'Undone: ' : 'Redone: ') + e.label, dir < 0 ? { label: 'Redo', fn: () => histStep(1) } : { label: 'Undo', fn: () => histStep(-1) });
+}
+const undo = () => histStep(-1), redo = () => histStep(1);
+// the history, to go back several steps at once
+function historyDialog() {
+  if (A.ed) A.ed.commit();
+  const when = t => { const s = Math.round((Date.now() - t) / 1000); return s < 60 ? 'just now' : s < 3600 ? Math.round(s / 60) + ' min ago' : new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); };
+  const list = h('div', { class: 'histlist', role: 'list' });
+  const draw = () => list.replaceChildren(
+    h('div', { class: 'histrow now', role: 'listitem' }, h('span', { class: 'hl', text: 'Now' }), h('span', { class: 'ht', text: HIST.redo.length ? `${HIST.redo.length} undone step${HIST.redo.length === 1 ? '' : 's'} can be redone` : '' })),
+    ...[...HIST.undo].reverse().map((e, i) => h('button', { type: 'button', class: 'histrow', role: 'listitem', title: 'Undo back to before this', onclick: async () => { for (let k = 0; k <= i; k++) await histStep(-1); draw(); } },
+      h('span', { class: 'hl', text: e.label }), h('span', { class: 'ht', text: when(e.t) }))),
+    HIST.undo.length ? null : h('p', { class: 'hint', text: 'Nothing changed yet since this campaign was opened.' }));
+  draw();
+  const m = modal('Undo history', h('div', {}, h('p', { class: 'hint', text: `Click a step to undo it and everything after it. ${histMax()} steps are kept (Settings › Writing). Ctrl+Z undoes, Ctrl+Y redoes.` }), list),
+    [btn('undo', 'Redo', async () => { await histStep(1); draw(); }, 'ghost'), btn(null, 'Close', () => m.close(), 'primary')]);
+}
+// Ctrl+Z and Ctrl+Y (or Ctrl+Shift+Z) anywhere but in a text field, which keeps its own
+document.addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+  const k = e.key.toLowerCase(); if (k !== 'z' && k !== 'y') return;
+  if (e.target.closest && e.target.closest('input,textarea,select,[contenteditable="true"],.modal')) return;
+  if (!A.camp || SYNC.isPlayer()) return;
+  e.preventDefault();
+  if (k === 'y' || e.shiftKey) redo(); else undo();
+});
 
 /* ---------- the index: titles, links, backlinks, tags ---------- */
 function reindex() {
@@ -112,16 +198,26 @@ function openClues(doc) {
 }
 async function deleteDoc(id) {
   const d = A.docs.get(id); if (!d) return;
-  const kids = [...A.docs.values()].filter(x => x.parent === id);
-  kids.forEach(k => { k.parent = d.parent || ''; touch(k, true); });
-  A.docs.delete(id); A.dirty.delete(id); SYNC.removed(id);
-  await STORE.trashDoc(cid(), id).catch(e => toast('Could not delete it: ' + errText(e)));
+  // one step in the undo history: the document, and its children moving up a level
+  await histGroup(`Delete "${d.title}"`, async () => {
+    const kids = [...A.docs.values()].filter(x => x.parent === id);
+    kids.forEach(k => { k.parent = d.parent || ''; touch(k, true); });
+    A.docs.delete(id); A.dirty.delete(id); SYNC.removed(id); histRecord(id, null);
+    await STORE.trashDoc(cid(), id).catch(e => toast('Could not delete it: ' + errText(e)));
+  });
   reindex();
   if (A.view.k === 'doc' && A.view.id === id) go({ k: 'home' }, true); else render();
-  toast(`Deleted "${d.title}".`, { label: 'Undo', fn: () => { A.docs.set(d.id, d); kids.forEach(k => { k.parent = id; touch(k, true); }); touch(d); reindex(); go({ k: 'doc', id: d.id }); } });
+  toast(`Deleted "${d.title}".`, { label: 'Undo', fn: () => undo() });
 }
 // renaming keeps every link to it working
 function renameDoc(d, title) {
+  // one step in the undo history, with every link that changed along with it
+  const was = d.title, ok = histGroup(null, () => renameDocNow(d, title));
+  const top = HIST.undo[HIST.undo.length - 1];
+  if (ok && top && top.changes.some(c => c.id === d.id)) top.label = `Rename "${was}" to "${d.title}"`;
+  return ok;
+}
+function renameDocNow(d, title) {
   title = String(title || '').replace(/[\[\]|#]/g, '').trim().slice(0, 120); if (!title || title === d.title) return false;
   title = uniqueTitle(title, d.id);
   const old = d.title, rx = new RegExp('\\[\\[' + old.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=[\\]|#])', 'gi');
@@ -839,7 +935,12 @@ document.addEventListener('contextmenu', e => {
   const nb = t.closest('.navb');
   if (nb) return menu([{ label: 'Open ' + nb.textContent.trim(), icon: 'open', fn: () => nb.click() }], at);
   if (!A.camp) return menu([...copy, { label: 'Take the tour', icon: 'compass', fn: () => TOUR.ask() }, { label: 'Settings', icon: 'gear', fn: () => go({ k: 'settings' }) }], at);
+  const un = HIST.undo[HIST.undo.length - 1], re = HIST.redo[HIST.redo.length - 1];
   menu([...copy,
+    SYNC.isPlayer() ? null : { label: un ? 'Undo: ' + un.label : 'Nothing to undo', sub: 'Ctrl+Z', icon: 'undo', disabled: !un, fn: () => undo() },
+    re ? { label: 'Redo: ' + re.label, sub: 'Ctrl+Y', icon: 'refresh', fn: () => redo() } : null,
+    SYNC.isPlayer() ? null : { label: 'Undo history…', icon: 'log', fn: () => historyDialog() },
+    '-',
     SYNC.isPlayer() ? null : { label: 'New document…', sub: 'Ctrl+N', icon: 'plus', fn: () => $('#newBtn').click() },
     { label: 'Find…', sub: 'Ctrl+K', icon: 'search', fn: () => $('#findBtn').click() },
     '-',
@@ -859,7 +960,7 @@ async function openCampaign(id) {
   try { for (const d of await STORE.loadDocs(id)) { if (d && d.id) { d.body = String(d.body || ''); d.title = String(d.title || 'Untitled'); d.fields = d.fields || {}; if (!TYPES[d.type]) d.type = 'note'; A.docs.set(d.id, d); } } }
   catch (e) { toast('Could not read the campaign: ' + errText(e)); }
   await PLAN.loadWorld();
-  reindex();
+  reindex(); histReset();
   A.view = { k: 'none' };
   go(meta.last && D(meta.last) ? { k: 'doc', id: meta.last } : { k: 'home' }, true);
   if (meta.table) TABLE.connect(meta.table); else TABLE.disconnect();

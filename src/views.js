@@ -68,7 +68,10 @@ const VIEWS = (() => {
     wrap.append(sec('Writing',
       row('Suggest links while I write', 'When you type the name of another document, a small bubble offers to link it.', sw(P.suggest !== false, v => set('suggest', v), 'Suggest links')),
       row('Lock documents when I leave them', 'A locked document can still be read, ticked and sent, but not changed by accident. The lock above a document opens it again.', sw(!!P.autoLock, v => set('autoLock', v), 'Lock documents when I leave them')),
-      row('Tips on the home page', '', sw(!P.noTips, v => set('noTips', !v), 'Tips on the home page'))));
+      row('Tips on the home page', '', sw(!P.noTips, v => set('noTips', !v), 'Tips on the home page')),
+      row('Undo steps', 'How many changes Ctrl+Z can take back (for every document and the campaign). Ctrl+Y redoes.',
+        h('select', { 'aria-label': 'Undo steps', onchange: e => { P.undoSteps = +e.target.value; savePrefs(); } }, ...[25, 50, 100, 250, 500, 1000].map(n => h('option', { value: n, text: n + ' steps', selected: (+P.undoSteps || 100) === n }))),
+        btn('log', 'History…', () => historyDialog(), 'tiny ghost'))));
     if (c && !SYNC.isPlayer()) {
       const name = h('input', { type: 'text', value: c.name, 'aria-label': 'Campaign name', onchange: async e => { c.name = e.target.value.trim() || c.name; await saveCamp(); renderSide(); } });
       const sys = h('select', { 'aria-label': 'Game', onchange: async e => { c.sys = e.target.value; await saveCamp(); } }, ...Object.entries(SRD.SYSTEMS).map(([k, l]) => h('option', { value: k, text: l, selected: k === (c.sys || 'generic') })));
@@ -576,7 +579,7 @@ ${critterText(d, true)}`) },
   function command(k) {
     if (k === 'new-campaign') newCampaign(); else if (k === 'campaign-settings') campaignSettings(); else if (k === 'open-folder') STORE.openFolder(cid());
     else if (k === 'vault') vaultDialog(); else if (k === 'export-md') exportMd(); else if (k === 'backup') backup(); else if (k === 'restore') restore();
-    else if (k === 'shortcuts') shortcuts(); else if (k === 'about') about(); else if (k === 'tour') TOUR.ask();
+    else if (k === 'shortcuts') shortcuts(); else if (k === 'about') about(); else if (k === 'tour') TOUR.ask(); else if (k === 'undo') undo(); else if (k === 'redo') redo(); else if (k === 'history') historyDialog();
     else if (k === 'import-md' && A.camp) PLAN.importMd(false); else if (k === 'import-folder' && A.camp) PLAN.importMd(true); else if (k === 'appearance') appearance();
   }
   function pageMenu(at) {

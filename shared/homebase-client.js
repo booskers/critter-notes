@@ -208,6 +208,8 @@ function startServer(base) {
     saves: async code => (await ask({ t: 'saves', scope: 'L' + code })).saves || [],
     saveNow: async (code, label) => (await ask({ t: 'savenow', scope: 'L' + code, label })).id,
     restore: async (code, id) => { await ask({ t: 'restore', scope: 'L' + code, id }); },
+    // close a lobby for good (its owner only): an older Homebase doesn't know this, and the lobby just stays
+    drop: async code => { await ask({ t: 'drop', scope: 'L' + code }); },
     // D&D Beyond, through this Homebase (lobby owner and co-owners): what: 'config' | 'items' | 'spells' | 'monsters'.
     // The CobaltSession cookie goes to the Homebase for this one call and is never stored there.
     // Plain HTTP rather than the socket: an import takes many calls and its answers can be megabytes.
