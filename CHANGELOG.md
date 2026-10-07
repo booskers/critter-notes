@@ -1,6 +1,9 @@
 # Changelog
 
-## Next
+## 1.4.0 (2026-10-07)
+- A guided tour: the basics in two minutes, or everything in depth. It shows Critter Notes with a sample campaign, opens things and changes them around to show them off, and puts everything back when it ends. Offered once at the first start; again any time from Settings › Help, the welcome screen or the menu.
+- Link cards: rest the pointer on a link for a second to see its banner, portrait, kind, the facts that matter and how it begins, with sections and lists kept in their shape.
+- Players only ever see what was shared with them: a link to something they don't know says so, and suggests their character ask around.
 - A banner spans the whole middle and flows up under the title bar; the document bar turns to glass once you scroll.
 - A picture's glow spreads out softly to the edges instead of being cut off.
 

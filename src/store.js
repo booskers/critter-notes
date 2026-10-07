@@ -14,6 +14,7 @@ const STORE = (() => {
       listCampaigns: () => desk.campList(),
       saveCampaign: meta => desk.campSave(meta),
       trashCampaign: cid => desk.campTrash(cid),
+      removeCampaign: cid => desk.campRemove(cid),
       loadDocs: cid => desk.docList(cid),
       saveDoc: (cid, doc) => desk.docSave(cid, doc),
       trashDoc: (cid, id) => desk.docTrash(cid, id),
@@ -47,6 +48,7 @@ const STORE = (() => {
       await tx('camps', 'readwrite', s => { s.delete(cid); });
       const docs = await this.loadDocs(cid); await tx('docs', 'readwrite', s => { docs.forEach(d => s.delete(cid + '/' + d.id)); });
     },
+    removeCampaign(cid) { return this.trashCampaign(cid); },
     loadDocs: cid => tx('docs', 'readonly', async s => (await req(s.index('cid').getAll(cid))).map(x => x.doc)),
     saveDoc: (cid, doc) => tx('docs', 'readwrite', s => { s.put({ cid, doc: JSON.parse(JSON.stringify(doc)) }, cid + '/' + doc.id); }),
     trashDoc: (cid, id) => tx('docs', 'readwrite', s => { s.delete(cid + '/' + id); }),

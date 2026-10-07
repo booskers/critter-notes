@@ -21,7 +21,7 @@ const VIEWS = (() => {
           h('div', { class: 'row' }, invite, btn(null, 'Join', async () => { try { await SYNC.joinWriter(invite.value); } catch (e) { toast(errText(e)); } }, 'primary'))),
         choice('character', 'Join as a player', 'You see what your GM shares with you, and keep your own notes. They\'re your notes in Critter VTT too.',
           h('div', { class: 'row' }, lobby, btn(null, 'Next', () => pickPlayer(lobby.value), 'primary')))),
-      h('div', { class: 'row center wrap' }, btn('upload', 'Restore a backup', () => restore(), 'ghost tiny')),
+      h('div', { class: 'row center wrap' }, btn('compass', 'Take the tour', () => TOUR.ask(), 'ghost tiny'), btn('upload', 'Restore a backup', () => restore(), 'ghost tiny')),
       h('p', { class: 'hint', text: STORE.kind === 'files' ? `Campaigns are kept as plain files in ${where.root}.` : 'Campaigns are kept in this browser.' })));
   }
   async function pickPlayer(code) {
@@ -112,7 +112,8 @@ const VIEWS = (() => {
         row('Check when Notes starts', 'A quiet look a few seconds after starting; it only speaks up when there is something new.', auto),
         h('div', { class: 'setrow' }, h('div', { class: 'sl' }, h('b', { text: 'Updates' }), ver), h('div', { class: 'sc' }, btn('refresh', 'Check for updates', () => U.check(), 'tiny'), btn('github', 'GitHub', () => U.github(), 'tiny ghost')))));
     }
-    wrap.append(sec('Help', row('Keyboard and writing', 'Every shortcut, and what the boxes and links in a document are.', btn('help', 'Show them', () => shortcuts(), 'tiny')),
+    wrap.append(sec('Help', row('The tour', 'The basics in two minutes, or everything in depth. It uses a sample campaign and puts everything back afterwards.', btn('compass', 'Take the tour', () => TOUR.ask(), 'tiny')),
+      row('Keyboard and writing', 'Every shortcut, and what the boxes and links in a document are.', btn('help', 'Show them', () => shortcuts(), 'tiny')),
       U ? row('Updates', 'See whether a newer Critter Notes is out.', btn('refresh', 'Check for updates', () => U.check(), 'tiny')) : null,
       row('About Critter Notes', 'Made with love by booskers / Polychrome.', U ? btn('github', 'GitHub', () => U.github(), 'tiny ghost') : null, btn(null, 'About', () => about(), 'tiny ghost'))));
     if (c && !SYNC.isPlayer()) wrap.append(sec('This campaign, for good', row('Delete this campaign', STORE.kind === 'files' ? 'Its folder goes to the recycle bin.' : 'It is deleted from this browser.', btn('trash', 'Delete…', () => deleteCampaign(), 'tiny ghost bad'))));
@@ -574,7 +575,7 @@ ${critterText(d, true)}`) },
   function command(k) {
     if (k === 'new-campaign') newCampaign(); else if (k === 'campaign-settings') campaignSettings(); else if (k === 'open-folder') STORE.openFolder(cid());
     else if (k === 'vault') vaultDialog(); else if (k === 'export-md') exportMd(); else if (k === 'backup') backup(); else if (k === 'restore') restore();
-    else if (k === 'shortcuts') shortcuts(); else if (k === 'about') about();
+    else if (k === 'shortcuts') shortcuts(); else if (k === 'about') about(); else if (k === 'tour') TOUR.ask();
     else if (k === 'import-md' && A.camp) PLAN.importMd(false); else if (k === 'import-folder' && A.camp) PLAN.importMd(true); else if (k === 'appearance') appearance();
   }
   function pageMenu(at) {
@@ -582,7 +583,7 @@ ${critterText(d, true)}`) },
       { label: 'Import Markdown files…', icon: 'upload', disabled: !A.camp, fn: () => PLAN.importMd(false) }, { label: 'Import a folder…', icon: 'folder', disabled: !A.camp, fn: () => PLAN.importMd(true) },
       { label: 'Back up this campaign…', icon: 'download', disabled: !A.camp, fn: () => backup() }, { label: 'Restore a backup…', icon: 'upload', fn: () => restore() }, '-',
       { label: 'Appearance…', icon: 'moon', fn: () => appearance() },
-      { label: 'Homebase…', icon: 'globe', fn: () => window.CRITBOARD_DESKTOP && window.CRITBOARD_DESKTOP.changeHomebase() }, { label: 'Keyboard shortcuts', icon: 'help', fn: () => shortcuts() }, { label: 'About Critter Notes', icon: 'note', fn: () => about() },
+      { label: 'Homebase…', icon: 'globe', fn: () => window.CRITBOARD_DESKTOP && window.CRITBOARD_DESKTOP.changeHomebase() }, { label: 'Take the tour', icon: 'compass', fn: () => TOUR.ask() }, { label: 'Keyboard shortcuts', icon: 'help', fn: () => shortcuts() }, { label: 'About Critter Notes', icon: 'note', fn: () => about() },
       ...(window.desk && window.desk.updates ? ['-', { label: 'Check for updates…', icon: 'refresh', fn: () => window.desk.updates.check() }, { label: 'Critter Notes on GitHub', icon: 'github', fn: () => window.desk.updates.github() }] : [])], at);
   }
   async function vaultDialog() {
@@ -622,8 +623,9 @@ ${critterText(d, true)}`) },
   }
 
   /* ============================== the sample campaign ============================== */
-  async function sample() {
-    const meta = await createCampaign({ name: 'The Lantern Road (sample)', sys: 'dnd5e' });
+  async function sample(o = {}) {
+    const meta = await createCampaign({ name: o.name || 'The Lantern Road (sample)', sys: 'dnd5e' });
+    if (o.tour) meta.tour = true;
     meta.cal = { months: ['Thaw', 'Seedfall', 'Highsun', 'Brightwane', 'Emberfall', 'Longdark'], days: [30, 30, 31, 30, 30, 32], era: 'AL', now: { y: 1204, m: 5, d: 12 } };
     meta.clocks = [{ id: 'kfog', name: 'The fog reaches the harbour', size: 6, filled: 2 }];
     await STORE.saveCampaign(meta);
@@ -790,7 +792,8 @@ The seventh lamp on the sea wall has gone out, and nobody will go near it.
       { id: 'c5', x: 900, y: 0, w: 220, doc: quest.id }],
       links: [{ id: 'l1', a: 'c1', b: 'c2', label: '' }, { id: 'l2', a: 'c2', b: 'c3', label: 'if they say no' }, { id: 'l3', a: 'c2', b: 'c4', label: 'they take the job' }, { id: 'l4', a: 'c3', b: 'c4', label: 'later' }, { id: 'l5', a: 'c4', b: 'c5', label: '' }] } });
     reindex(); await flush(); go({ k: 'home' }, true);
-    toast('Here is a small sample campaign to look around in.');
+    if (!o.quiet) toast('Here is a small sample campaign to look around in.');
+    return meta;
   }
   // a parchment coast drawn on the spot, so the sample has a map to pin
   function drawSampleMap() {

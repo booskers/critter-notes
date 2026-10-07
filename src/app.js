@@ -539,6 +539,7 @@ function bubble(anchor, html) {
 let hovT = 0, hovFor = null;
 function hideHover() { clearTimeout(hovT); const c = $('#hov'); if (c) { c.hidden = true; c.classList.remove('sticky'); } hovFor = null; }
 document.addEventListener('mouseover', e => {
+  if (document.body.classList.contains('touring')) return;   // the tour shows hover cards itself
   const a = e.target.closest('.wl[data-doc],.wl[data-unknown],.wl[data-new],.tl[data-ent],.tl[data-srd]'), card = $('#hov');
   if (e.target.closest('#hov')) { clearTimeout(hovT); return; }
   if (card.classList.contains('sticky')) return;
@@ -934,7 +935,10 @@ function paintChips() {
 async function boot() {
   wireWindow(); paintChips(); applyLook();
   await loadCampaigns();
+  await TOUR.sweep();
   const last = A.camps.find(c => c.id === A.prefs.lastCamp) || A.camps[0];
   if (last) await openCampaign(last.id); else render();
+  // the first time Notes opens, it offers the tour once
+  if (!A.prefs.tourAsked) setTimeout(() => { if (!document.querySelector('.modal')) TOUR.ask(); }, 900);
 }
 boot();

@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('desk', {
   campList: () => ipcRenderer.invoke('camp:list'),
   campSave: meta => ipcRenderer.invoke('camp:save', meta),
   campTrash: cid => ipcRenderer.invoke('camp:trash', cid),
+  campRemove: cid => ipcRenderer.invoke('camp:remove', cid),
   docList: cid => ipcRenderer.invoke('doc:list', cid),
   docSave: (cid, doc) => ipcRenderer.invoke('doc:save', cid, doc),
   docTrash: (cid, id) => ipcRenderer.invoke('doc:trash', cid, id),

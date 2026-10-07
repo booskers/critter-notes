@@ -164,6 +164,7 @@ function appMenu() {
     { type: 'separator' },
     { label: 'Appearance…', click: send('appearance') },
     { label: 'Homebase…', click: () => wc && wc.executeJavaScript('window.CRITBOARD_DESKTOP && window.CRITBOARD_DESKTOP.changeHomebase()') },
+    { label: 'Take the tour', click: send('tour') },
     { label: 'Keyboard shortcuts', click: send('shortcuts') },
     { label: 'About Critter Notes', click: send('about') },
     ...updates.menuItems(),
@@ -207,6 +208,8 @@ ipcMain.handle('camp:save', async (e, meta) => {
   await writeAtomic(path.join(dir, 'campaign.json'), JSON.stringify(meta, null, 2));
   return true;
 });
+// a tour's campaign is removed for good, not sent to the recycle bin (only a campaign marked tour: true)
+ipcMain.handle('camp:remove', async (e, cid) => { const d = await campDir(cid); let meta = {}; try { meta = JSON.parse(await fsp.readFile(path.join(d, 'campaign.json'), 'utf8')); } catch {} if (!meta.tour) return false; await fsp.rm(d, { recursive: true, force: true }); campDirs.delete(cid); return true; });
 ipcMain.handle('camp:trash', async (e, cid) => { const d = await campDir(cid); await shell.trashItem(d); campDirs.delete(cid); return true; });
 ipcMain.handle('doc:list', async (e, cid) => {
   const dir = path.join(await campDir(cid), 'docs'), out = [];

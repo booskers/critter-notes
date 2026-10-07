@@ -965,3 +965,23 @@ body.wfull #main.flow .docscroll>.banner{height:386px}
 .hov.rich .hf{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;font-size:12.5px;color:var(--ink)}
 .hov.rich .hf span{display:contents}
 .hov.rich .hf i{color:var(--faint)}
+/* the tour: a spotlight on one thing, a card beside it; the rest of the window dims */
+.tourov{position:fixed;inset:0;z-index:2100}
+.tourov.center{background:rgb(0 0 0/.55)}
+:root[data-theme=light] .tourov.center{background:rgb(20 20 30/.35)}
+.tourspot{position:fixed;border-radius:12px;box-shadow:0 0 0 2px var(--accent),0 0 0 9999px rgb(0 0 0/.58);transition:left var(--dur,.25s),top var(--dur,.25s),width var(--dur,.25s),height var(--dur,.25s);pointer-events:none}
+:root[data-theme=light] .tourspot{box-shadow:0 0 0 2px var(--accent),0 0 0 9999px rgb(20 20 30/.38)}
+.tourcard{position:fixed;width:min(380px,calc(100vw - 32px));padding:14px 16px 14px;border-radius:14px;background:var(--surface-3,var(--panel2));box-shadow:var(--shadow-3,var(--shadow));display:grid;gap:8px;transition:left var(--dur,.25s),top var(--dur,.25s),opacity .15s}
+.tourcard.moving{opacity:.35}
+.tourcard h3{margin:0;font:var(--fw-display,750) 20px/1.2 var(--font-display,var(--disp))}
+.tourcard p{margin:0;color:var(--ink2);line-height:1.5}
+.tourcard .row{margin-top:4px}
+.tourtop{display:flex;align-items:center;gap:8px}
+.tourn{font:700 11px var(--ui);letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.tourask p{margin:0 0 12px;color:var(--ink2);line-height:1.5}
+.tourpick{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.tourch{display:grid;gap:4px;text-align:left;padding:14px;border:0;border-radius:12px;background:var(--hover);color:var(--ink);font:inherit;cursor:pointer}
+.tourch:hover{background:var(--hover-2)}
+.tourch b{font-size:15px}.tourch span{color:var(--ink2);font-size:12.5px;line-height:1.45}
+@media (prefers-reduced-motion:reduce){.tourspot,.tourcard{transition:none}}
+body.touring #hov{z-index:2150}

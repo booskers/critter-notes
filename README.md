@@ -41,6 +41,10 @@ Test settings: `CBN_VAULT=<folder>` keeps campaigns elsewhere, `CBN_USERDATA=<fo
 Deleted documents and campaigns go to the Windows recycle bin. **Export as Markdown** writes an Obsidian-ready copy;
 **Import Markdown** reads one back (front matter, folders named after kinds, `![[picture]]` embeds). **Back up** writes one JSON file with the pictures inside.
 
+## The tour
+
+`src/tour.js`: the basics or everything in depth, offered once at the first start and from Settings › Help, the welcome screen and the menus. It runs in a sample campaign of its own (`tour: true`), shows features off by opening and changing things there, then removes that campaign for good (`camp:remove`, only for tour campaigns) and restores the settings, campaign and page. A tour campaign left by a crash is removed at the next start.
+
 ## Writing
 
 Documents are written as they look; Markdown is only how they're kept and exported.
