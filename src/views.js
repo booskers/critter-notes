@@ -65,6 +65,9 @@ const VIEWS = (() => {
           h('small', { text: n + (n === 'Easy reading' ? ' · base' : '') }), h('b', { text: 'The dragon rolls a 20' }), h('span', { text: d === u ? `${d}` : `${d} titles, ${u}` }));
         applyFontSet(b, n); return b;
       }))));
+    wrap.append(sec('Home',
+      row('A background picture on Home', 'The campaign\'s cover, blurred and darkened. With a table linked, Critter VTT\'s cover picture is used (and a picture chosen here goes to a table that has none).', sw(P.homeBg !== false, v => set('homeBg', v), 'Background picture on Home')),
+      c && !SYNC.isPlayer() && P.homeBg !== false ? row('The picture', c.cover ? '' : 'None chosen yet.', btn('image', c.cover ? 'Change…' : 'Choose…', () => chooseCover(), 'tiny'), c.cover ? btn('x', 'Remove', async () => { c.cover = ''; c.coverFrom = ''; await saveCamp(); renderMain(); }, 'tiny ghost') : null) : null));
     wrap.append(sec('Writing',
       row('Suggest links while I write', 'When you type the name of another document, a small bubble offers to link it.', sw(P.suggest !== false, v => set('suggest', v), 'Suggest links')),
       row('Lock documents when I leave them', 'A locked document can still be read, ticked and sent, but not changed by accident. The lock above a document opens it again.', sw(!!P.autoLock, v => set('autoLock', v), 'Lock documents when I leave them')),
@@ -136,8 +139,37 @@ const VIEWS = (() => {
   }
 
   /* ============================== the campaign's home ============================== */
+  // Home's background: the campaign's cover, blurred and darkened (Critter VTT's cover wins when the table has one); Settings turns it off
+  async function homeBackdrop(main) {
+    if (A.prefs.homeBg === false || !A.camp) return;
+    const bg = h('div', { class: 'homebg', 'aria-hidden': 'true' }); main.prepend(bg);
+    let url = '';
+    if (TABLE.on()) {
+      const src = await TABLE.coverImage().catch(() => '');
+      if (src) {
+        url = src;
+        // keep a copy in the campaign, so Home has it without the table too
+        const key = (TABLE.T.lobby.camp || {}).v;
+        if (key && A.camp.coverFrom !== key) { try { A.camp.cover = await STORE.putImage(cid(), await (await fetch(src)).blob(), 'cover.webp'); A.camp.coverFrom = key; await saveCamp(); } catch {} }
+      } else if (A.camp.cover && !A.camp.coverOffered) {
+        // the table has no cover yet: offer it the one from Notes
+        try { const u = await STORE.imageUrl(cid(), A.camp.cover); const small = await coverData(u); if (small && await TABLE.offerCover(small)) { A.camp.coverOffered = true; await saveCamp(); } } catch {}
+      }
+    }
+    if (!url && A.camp.cover) url = await STORE.imageUrl(cid(), A.camp.cover).catch(() => '');
+    if (url && bg.isConnected) { bg.style.backgroundImage = `url("${url}")`; main.classList.add('hasbg'); }
+  }
+  // a picture shrunk to fit Critter VTT's cover (like its own logos: webp, at most two pieces)
+  function coverData(url) {
+    return new Promise(res => { const im = new Image(); im.onerror = () => res(''); im.onload = () => {
+      let max = 900, q = 0.84, src = '';
+      for (let i = 0; i < 8; i++) { const k = Math.min(1, max / Math.max(im.naturalWidth, im.naturalHeight)), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(im.naturalWidth * k)); c.height = Math.max(1, Math.round(im.naturalHeight * k)); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); src = c.toDataURL('image/webp', q); if (src.length <= 400000) break; max = Math.round(max * 0.8); q = Math.max(0.6, q - 0.06); }
+      res(src); }; im.src = url; });
+  }
+  async function chooseCover() { const f = await pickImage(); if (!f) return; A.camp.cover = f; A.camp.coverFrom = ''; A.camp.coverOffered = false; await saveCamp(); if (A.view.k === 'home') renderMain(); toast('Home has a new background.'); }
   function home(main) {
     main.className = 'home';
+    homeBackdrop(main);
     if (SYNC.isPlayer()) return playerHome(main);
     const all = [...A.docs.values()], sessions = sortedOf('session');
     const next = sessions.slice().reverse().find(s => (s.fields || {}).status !== 'Played') || sessions[sessions.length - 1];
@@ -146,6 +178,7 @@ const VIEWS = (() => {
     wrap.append(h('div', { class: 'hhead' },
       h('div', {}, h('div', { class: 'eyebrow', text: [SRD.SYSTEMS[campSys()], TABLE.on() ? 'Table ' + TABLE.T.code : '', now ? 'Today: ' + PLAN.wfmt(now) : ''].filter(Boolean).join(' · ') }), h('h1', { text: A.camp.name, tabIndex: -1 })),
       h('div', { class: 'grow' }),
+      A.prefs.homeBg === false ? null : btn('image', A.camp.cover ? 'Background' : 'Add a background', () => chooseCover(), 'tiny ghost bgbtn'),
       h('div', { class: 'quick', role: 'group', 'aria-label': 'New' }, ...['session', 'character', 'location', 'quest', 'map', 'note'].map(t => h('button', { type: 'button', class: 'qnew', style: `--c:${TYPES[t].color}`, title: TYPES[t].hint, onclick: () => create(t) }, h('span', { html: icon(TYPES[t].icon), 'aria-hidden': 'true' }), h('b', { text: TYPES[t].name }))))));
     const cols = h('div', { class: 'hcols' }), left = h('div', { class: 'hcol' }), right = h('div', { class: 'hcol' }); cols.append(left, right); wrap.append(cols);
     // the next session

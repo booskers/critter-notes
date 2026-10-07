@@ -943,8 +943,8 @@ body.wfull #main.flow .docscroll>.banner{height:386px}
 .hban{height:104px;margin:0;position:relative;-webkit-mask-image:linear-gradient(#000 45%,transparent);mask-image:linear-gradient(#000 45%,transparent)}
 .hban img{width:100%;height:100%;object-fit:cover;display:block}
 .hban.frompic img{filter:blur(14px) saturate(1.4);transform:scale(1.25);opacity:.75}
-.hhead{display:flex;align-items:flex-end;gap:12px;margin-top:-46px;position:relative}
-.hhead.plain{margin-top:12px;align-items:center}
+.hov .hhead{display:flex;align-items:flex-end;gap:12px;margin:-46px 0 0;flex-wrap:nowrap;position:relative}
+.hov .hhead.plain{margin-top:12px;align-items:center}
 .hav{flex:none;width:64px;height:64px;border-radius:14px;object-fit:cover;box-shadow:0 10px 24px -10px rgb(0 0 0/.7),0 0 0 3px var(--surface-3,var(--panel2))}
 .hav.none{display:grid;place-items:center;background:color-mix(in srgb,var(--c) 18%,var(--surface-3,var(--panel2)));color:var(--c);box-shadow:none;width:44px;height:44px;border-radius:12px}
 .hav.none .ic{width:22px;height:22px}
@@ -1008,3 +1008,14 @@ body.touring #hov{z-index:2150}
 .histrow.now{cursor:default;color:var(--accent-hi,var(--accent));font-weight:650}.histrow.now:hover{background:none}
 .histrow .hl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .histrow .ht{color:var(--faint);font-size:12px;white-space:nowrap}
+/* Home's background: the cover picture, blurred and darkened, held in place while the page scrolls, up under the title bar */
+#main.home.hasbg{padding-top:0}
+#main.home.hasbg .homein{padding-top:64px}
+.homebg{position:sticky;top:0;height:100vh;margin-bottom:-100vh;z-index:0;pointer-events:none;background:center/cover no-repeat;filter:blur(18px) brightness(.42) saturate(1.15);transform:scale(1.08);opacity:0;transition:opacity .5s ease}
+.home.hasbg .homebg{opacity:1}
+:root[data-theme=light] .homebg{filter:blur(18px) brightness(1.15) saturate(.9);opacity:0}
+:root[data-theme=light] .home.hasbg .homebg{opacity:.45}
+.home .homein{position:relative;z-index:1}
+.home.hasbg .hcard{background:color-mix(in srgb,var(--surface-1,var(--panel)) 82%,transparent);backdrop-filter:blur(6px)}
+.bgbtn{opacity:.75}.bgbtn:hover{opacity:1}
+@media (prefers-reduced-motion:reduce){.homebg{transition:none}}

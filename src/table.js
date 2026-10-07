@@ -178,5 +178,25 @@ const TABLE = (() => {
     return out.sort((a, b) => a.ts - b.ts);
   }
 
-  return { T, parse, show, connect, disconnect, on, sys, players, scenes, sendNote, sendEnt, sendScene, cue, say, whisper, sceneImage, chatSince, jpeg, onChange: fn => { T.fns.add(fn); return () => T.fns.delete(fn); } };
+  /* the campaign's cover picture, shared with Critter VTT: the lobby's camp { title, sub, v, n } and its picture in campimg/<i>
+     (pieces of a data URL, at most 4 of 200 000 characters). A cover set in Critter VTT wins; Notes only offers one when the table has none. */
+  const COVER_CHUNK = 200000;
+  let cover = { v: null, src: '' };
+  async function coverImage() {
+    const c = T.lobby && T.lobby.camp; if (!T.db || !c || !c.n) return '';
+    if (cover.v === c.v) return cover.src;
+    try {
+      const parts = await Promise.all(Array.from({ length: Math.min(4, +c.n || 0) }, (_, i) => T.db.doc(P('campimg', String(i))).get().then(s => (s.exists ? String((s.data() || {}).d || '') : ''))));
+      const src = parts.join(''); cover = { v: c.v, src: /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(src) ? src : '' };
+    } catch { return ''; }
+    return cover.src;
+  }
+  async function offerCover(src) {
+    const c = (T.lobby && T.lobby.camp) || {}; if (!T.db || c.n || !src || src.length > COVER_CHUNK * 4) return false;
+    const chunks = []; for (let i = 0; i < src.length; i += COVER_CHUNK) chunks.push(src.slice(i, i + COVER_CHUNK));
+    const next = { title: String(c.title || '').slice(0, 60), sub: String(c.sub || '').slice(0, 90), v: rand(12), n: chunks.length };
+    try { for (let i = 0; i < chunks.length; i++) await T.db.doc(P('campimg', String(i))).set({ d: chunks[i] }); await T.db.doc(P().slice(0, -1)).update({ camp: next }); return true; }
+    catch { return false; }
+  }
+  return { T, parse, show, connect, disconnect, on, sys, players, scenes, sendNote, sendEnt, sendScene, cue, say, whisper, sceneImage, chatSince, jpeg, coverImage, offerCover, onChange: fn => { T.fns.add(fn); return () => T.fns.delete(fn); } };
 })();
