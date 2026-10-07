@@ -1159,3 +1159,6 @@ body.phone #tabbar{z-index:896}
 body.touch kbd,body.touch .findbtn kbd,body.touch .kbd{display:none}
 @media (max-width:900px){.dtop{margin:-20px -18px 10px;padding:22px 18px 0}}
 body.nocamp #titlebar .wb-nav{visibility:hidden}
+/* phones: messages sit above the tab bar; Home's enlarged blurred background never makes the page scroll sideways */
+body.phone .toast{bottom:calc(var(--tabbar) + var(--sab) + 12px)}
+#main.home{overflow-x:hidden}
