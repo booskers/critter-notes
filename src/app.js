@@ -418,7 +418,7 @@ function renderMain() {
   if (mainCleanup) { try { mainCleanup(); } catch {} mainCleanup = null; }
   const main = $('#main'); main.replaceChildren(); main.className = '';
   hideHover(); applyLook();
-  if (!A.camp) { VIEWS.welcome(main); return; }
+  if (!A.camp) { if (document.getElementById('drawer')) DRAWER.mount(); VIEWS.welcome(main); return; }
   if (PAGES[A.view.k]) return PAGES[A.view.k].render(main);
   if (A.view.k === 'doc' && D(A.view.id)) return renderDoc(main, D(A.view.id));
   A.view = { k: 'home' }; VIEWS.home(main);
@@ -965,6 +965,7 @@ async function openCampaign(id) {
   go(meta.last && D(meta.last) ? { k: 'doc', id: meta.last } : { k: 'home' }, true);
   if (meta.table) TABLE.connect(meta.table); else TABLE.disconnect();
   if (meta.share && meta.share.on) SYNC.start(); SYNC.paintRole();
+  DRAWER.mount();
 }
 async function createCampaign(o) {
   const meta = { id: rid('c'), name: String(o.name || 'New campaign').slice(0, 80), sys: o.sys || 'generic', color: o.color || '', table: o.table || '', created: Date.now(), updated: Date.now() };

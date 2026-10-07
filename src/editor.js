@@ -471,7 +471,8 @@ const ED = (() => {
     });
 
     function setLocked(v) { commit(); locked = v; wrap.classList.toggle('locked', v); bar.hidden = sugg.hidden = gutter.hidden = true; render(); }
-    return { root, setLocked, commit, render, insertBlockMd, focus: () => { const b = root.lastElementChild; if (b) placeEnd(b); } };
+    // dropMd: something dragged in (from the notes drawer) goes where it was let go
+    return { root, setLocked, commit, render, insertBlockMd, dropMd: (md, x, y) => { placeAtPoint(x, y); insertBlockMd(md); }, focus: () => { const b = root.lastElementChild; if (b) placeEnd(b); } };
   }
 
   // the link suggestions: documents (and the shared world's), the table's Library, Critter Sounds, the SRD
@@ -517,7 +518,7 @@ const ED = (() => {
       inp.addEventListener('keydown', e => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); sel = (sel + (e.key === 'ArrowDown' ? 1 : rows.length - 1)) % Math.max(1, rows.length); draw(); } if (e.key === 'Enter') { e.preventDefault(); pick(sel); } if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fin(null); } });
       document.body.append(box); draw();
       const x = Math.max(8, Math.min(innerWidth - box.offsetWidth - 8, rect.left || rect.x || innerWidth / 2 - 160)), y = (rect.bottom || rect.y || innerHeight / 3) + 6;
-      box.style.left = x + 'px'; box.style.top = Math.min(innerHeight - box.offsetHeight - 8, y) + 'px';
+      box.style.left = x + 'px'; box.style.top = Math.max(8, Math.min(innerHeight - box.offsetHeight - 8, y)) + 'px';
       setTimeout(() => document.addEventListener('pointerdown', away, true), 0);
       inp.focus(); inp.select();
     });

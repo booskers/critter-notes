@@ -11,6 +11,13 @@ const TOUR = (() => {
   const open = async d => { if (d) { openDoc(d.id); await wait(500); } };
   const page = async k => { go({ k }); await wait(500); };
   const mode = async (d, m) => { if (d) { A.modes.set(d.id, m); openDoc(d.id); await wait(500); } };
+  // the drawer, open, with a to-do list in it (in the tour's own campaign; it goes with it)
+  const drawerShow = async () => {
+    if (!document.getElementById('drawer')) DRAWER.mount();
+    if (!document.getElementById('drawer')) return;
+    if (!(A.camp.drawer && A.camp.drawer.blocks.length)) DRAWER.add('todo', 20, 10, { title: 'Before the session', items: [{ id: 't1', t: 'Print the map of Gallowmere', done: true }, { id: 't2', t: 'Pick music for the tavern', done: false }, { id: 't3', t: 'Name the drowned sailor', done: false }] });
+    DRAWER.toggle(true); if (document.activeElement) document.activeElement.blur(); await wait(450);
+  };
   const hoverLink = async name => { const a = [...document.querySelectorAll('.wl[data-doc]')].find(x => x.textContent.includes(name)); if (!a) return; a.scrollIntoView({ block: 'center' }); await wait(250); peek(a); await wait(300); };
 
   // each step: where to look (a selector, or none for the middle), what it is, and what to do first to show it off
@@ -24,6 +31,7 @@ const TOUR = (() => {
     { el: () => hovFor || document.querySelector('.wl[data-doc]'), before: async () => { await hoverLink('Mother Vey'); }, after: () => hideHover(), title: 'Links', text: 'Names become links to their documents. Rest the pointer on one for a second to see its picture and the facts that matter, without leaving the page.' },
     { el: '.sendb', title: 'Send to the table', text: 'Send a document, a section or a selection to your Critter VTT table: as a note, a handout for every player, or a whisper to one of them.' },
     { el: '#nav', title: 'Your views', text: 'Home, the Timeline of your world, Threads (clocks, quests and clues), Relationships and the Graph of everything.' },
+    { el: '#drpanel', before: async () => drawerShow(), after: () => { if (document.getElementById('drawer')) DRAWER.toggle(false); }, title: 'The notes drawer', text: 'The tab at the bottom of the window (Ctrl+J) opens a small canvas for to-do lists and quick notes. Right-click it for something new, drag the top edge to resize it, and drag a block onto a document to put it there. Open to-dos show on Home too. Settings can turn the drawer off.' },
     { el: '#gearBtn', title: 'Settings', text: 'Your colours, fonts and reading size, sharing with co-writers and players, the table and updates. That\'s the basics: the in-depth tour shows the rest.' }
   ];
   const DEPTH = [
@@ -42,6 +50,7 @@ const TOUR = (() => {
     { el: '#main', before: async () => page('threads'), title: 'Threads', text: 'Progress clocks for factions and quests, quests by status, and every clue: planned in which session, found in which.' },
     { el: '#main', before: async () => page('graph'), title: 'The graph', text: 'Everything you wrote and how it links. Isolated documents stand out, so nothing gets forgotten.' },
     { el: '#right', before: async () => { await open(byType('session')); if (!A.prefs.right) { A.prefs.right = true; renderRight && renderRight(); } await wait(300); }, title: 'The side panel', text: 'The outline and backlinks of the open document, your Critter VTT table (its Library, scenes and players) and Critter Sounds cues.' },
+    { el: '#drpanel', before: async () => drawerShow(), after: () => { if (document.getElementById('drawer')) DRAWER.toggle(false); }, title: 'The notes drawer', text: 'The tab at the bottom of the window (Ctrl+J) opens a small canvas for to-do lists and quick notes. Right-click it for something new, drag the top edge to resize it, and drag a block onto a document to put it there. Open to-dos show on Home too. Settings can turn the drawer off.' },
     { el: '#focusBtn', title: 'Focus', text: 'Ctrl+. hides everything but the page, for writing without distractions.' },
     { el: '#gearBtn', title: 'Settings and sharing', text: 'Your colours and fonts, the table, updates, and sharing: co-writers see and change everything, players see only what you open to them, and their notes are their Critter VTT notes.' },
     { title: 'That\'s the tour', text: 'Everything goes back to how it was now: the sample campaign used for the tour is removed. You can take the tour again from Settings › Help or the Critter Notes menu.' }
@@ -101,42 +110,52 @@ const TOUR = (() => {
       h('div', { class: 'tourtop' }, h('span', { class: 'tourn', text: `${i + 1} of ${run.steps.length}` }), h('span', { class: 'grow' }), ib('x', 'End the tour', () => end())),
       h('h3', { id: 'tourT', text: s.title }), h('p', { id: 'tourX', text: s.text }),
       h('div', { class: 'row' }, i ? btn(null, 'Back', () => next(-1), 'ghost') : btn(null, 'End the tour', () => end(), 'ghost'), h('span', { class: 'grow' }), btn(null, last ? 'Finish' : 'Next', () => next(1), 'primary')));
-    place();
+    place(); setTimeout(place, 450);   // again once pictures (a link's card) have loaded
     run.card.classList.remove('moving');
     const b = run.card.querySelector('.btn.primary'); if (b) b.focus();
   }
   function target() { const s = run && run.steps[run.i]; if (!s || !s.el) return null; const e = typeof s.el === 'function' ? s.el() : document.querySelector(s.el); return e && e.offsetParent !== null ? e : null; }
+  // the card always stays inside the window with a margin, and beside what it explains rather than over it:
+  // right, left, below or above, whichever fits; if none does, the roomiest side, with the card scrolling inside itself
   function place() {
     if (!run) return;
-    const el = target(), c = run.card, pad = 6;
-    if (!el) { run.spot.hidden = true; run.box.classList.add('center'); c.style.left = Math.round((innerWidth - c.offsetWidth) / 2) + 'px'; c.style.top = Math.round((innerHeight - c.offsetHeight) / 2) + 'px'; return; }
+    const c = run.card, M = 12, gap = 14, W = innerWidth, H = innerHeight;
+    c.style.maxHeight = ''; c.style.overflow = ''; c.style.width = '';
+    let el = target();
+    if (el) { try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch {} }
+    // what can be seen of it
+    let r = el && el.getBoundingClientRect();
+    if (r) { const x0 = Math.max(0, r.left), y0 = Math.max(0, r.top), x1 = Math.min(W, r.right), y1 = Math.min(H, r.bottom); r = x1 - x0 > 4 && y1 - y0 > 4 ? { left: x0, top: y0, right: x1, bottom: y1 } : null; }
+    const center = () => { run.spot.hidden = true; run.box.classList.add('center'); c.style.maxHeight = (H - 2 * M) + 'px'; c.style.overflow = 'auto'; c.style.left = Math.round(Math.max(M, (W - c.offsetWidth) / 2)) + 'px'; c.style.top = Math.round(Math.max(M, (H - c.offsetHeight) / 2)) + 'px'; };
+    if (!r) return center();
     run.box.classList.remove('center'); run.spot.hidden = false;
-    const r = el.getBoundingClientRect();
-    let x = Math.max(4, r.left - pad), y = Math.max(4, r.top - pad), w = Math.min(innerWidth - x - 4, r.width + pad * 2), hh = Math.min(innerHeight - y - 4, r.height + pad * 2);
-    Object.assign(run.spot.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: hh + 'px' });
-    const cw = c.offsetWidth, ch = c.offsetHeight, gap = 14;
+    const pad = 6, s = { left: Math.max(2, r.left - pad), top: Math.max(2, r.top - pad), right: Math.min(W - 2, r.right + pad), bottom: Math.min(H - 2, r.bottom + pad) };
+    Object.assign(run.spot.style, { left: s.left + 'px', top: s.top + 'px', width: (s.right - s.left) + 'px', height: (s.bottom - s.top) + 'px' });
     // keep clear of a link's hover card too, when one is showing
-    const hv = document.getElementById('hov');
-    if (hv && !hv.hidden) {
-      // the hover card hangs under (or over) the link: the tour card takes the other side, or sits beside the hover card
-      const q = hv.getBoundingClientRect(), below = q.top >= r.top;
-      let top = below ? r.top - ch - gap : r.bottom + gap, left = r.left;
-      if (top < 8 || top + ch > innerHeight - 8) { left = q.right + gap + cw < innerWidth - 8 ? q.right + gap : q.left - gap - cw; top = q.top; }
-      c.style.left = Math.round(Math.max(8, Math.min(innerWidth - cw - 8, left))) + 'px';
-      c.style.top = Math.round(Math.max(8, Math.min(innerHeight - ch - 8, top))) + 'px';
-      return;
-    }
-    // beside the spot if there's room (right, then left), else under it, else over it, else in the middle of it
-    let left, top;
-    // a whole view (a board, a map, a page): the card waits in its bottom-right corner, out of the way
-    if (w * hh > innerWidth * innerHeight * 0.4) { left = x + w - cw - 24; top = y + hh - ch - 24; }
-    else if (x + w + gap + cw < innerWidth - 8) { left = x + w + gap; top = y; }
-    else if (x - gap - cw > 8) { left = x - gap - cw; top = y; }
-    else if (y + hh + gap + ch < innerHeight - 8) { left = x; top = y + hh + gap; }
-    else if (y - gap - ch > 8) { left = x; top = y - gap - ch; }
-    else { left = x + (w - cw) / 2; top = y + (hh - ch) / 2; }
-    c.style.left = Math.round(Math.max(8, Math.min(innerWidth - cw - 8, left))) + 'px';
-    c.style.top = Math.round(Math.max(8, Math.min(innerHeight - ch - 8, top))) + 'px';
+    const k = { ...s }, hv = document.getElementById('hov');
+    if (hv && !hv.hidden) { const q = hv.getBoundingClientRect(); k.left = Math.min(k.left, q.left); k.top = Math.min(k.top, q.top); k.right = Math.max(k.right, q.right); k.bottom = Math.max(k.bottom, q.bottom); }
+    const cw = c.offsetWidth, ch = c.offsetHeight, kw = k.right - k.left, kh = k.bottom - k.top;
+    const put = (left, top, maxH) => {
+      if (maxH) { c.style.maxHeight = Math.max(120, maxH) + 'px'; c.style.overflow = 'auto'; }
+      const h2 = Math.min(c.offsetHeight, H - 2 * M);
+      c.style.left = Math.round(Math.max(M, Math.min(W - cw - M, left))) + 'px';
+      c.style.top = Math.round(Math.max(M, Math.min(H - h2 - M, top))) + 'px';
+    };
+    // a whole view (a board, a map, a page): the card waits in its bottom-right corner
+    if (kw * kh > W * H * 0.4) return put(k.right - cw - 24, k.bottom - ch - 24, H - 2 * M);
+    const room = { right: W - k.right - gap - M, left: k.left - gap - M, below: H - k.bottom - gap - M, above: k.top - gap - M };
+    const vtop = Math.min(Math.max(M, k.top), H - ch - M);
+    if (room.right >= cw && H - 2 * M >= ch) return put(k.right + gap, vtop);
+    if (room.left >= cw && H - 2 * M >= ch) return put(k.left - gap - cw, vtop);
+    if (room.below >= ch && W - 2 * M >= cw) return put(k.left, k.bottom + gap);
+    if (room.above >= ch && W - 2 * M >= cw) return put(k.left, k.top - gap - ch);
+    // nothing fits whole: the roomiest side, the card scrolling inside
+    const side = Object.entries({ right: room.right * (H - 2 * M), left: room.left * (H - 2 * M), below: room.below * (W - 2 * M), above: room.above * (W - 2 * M) }).sort((a, b) => b[1] - a[1])[0][0];
+    if (side === 'right' && room.right >= 220) { c.style.width = Math.min(cw, room.right) + 'px'; return put(k.right + gap, M, H - 2 * M); }
+    if (side === 'left' && room.left >= 220) { c.style.width = Math.min(cw, room.left) + 'px'; return put(k.left - gap - Math.min(cw, room.left), M, H - 2 * M); }
+    if (side === 'below' && room.below >= 120) return put(k.left, k.bottom + gap, room.below);
+    if (side === 'above' && room.above >= 120) return put(k.left, Math.max(M, k.top - gap - Math.min(ch, room.above)), room.above);
+    put(k.left + (kw - cw) / 2, k.top + (kh - ch) / 2, H - 2 * M);
   }
   async function end() {
     if (!run) return;

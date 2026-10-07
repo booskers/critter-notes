@@ -68,6 +68,8 @@ const VIEWS = (() => {
     wrap.append(sec('Home',
       row('A background picture on Home', 'The campaign\'s cover, blurred and darkened. With a table linked, Critter VTT\'s cover picture is used (and a picture chosen here goes to a table that has none).', sw(P.homeBg !== false, v => set('homeBg', v), 'Background picture on Home')),
       c && !SYNC.isPlayer() && P.homeBg !== false ? row('The picture', c.cover ? '' : 'None chosen yet.', btn('image', c.cover ? 'Change…' : 'Choose…', () => chooseCover(), 'tiny'), c.cover ? btn('x', 'Remove', async () => { c.cover = ''; c.coverFrom = ''; await saveCamp(); renderMain(); }, 'tiny ghost') : null) : null));
+    wrap.append(sec('Notes drawer',
+      row('The notes drawer', 'A tab at the bottom of the window that slides up into a small canvas for to-do lists and notes, to drag into documents (Ctrl+J).', sw(P.drawer !== false, v => { set('drawer', v); DRAWER.mount(); }, 'The notes drawer'))));
     wrap.append(sec('Writing',
       row('Suggest links while I write', 'When you type the name of another document, a small bubble offers to link it.', sw(P.suggest !== false, v => set('suggest', v), 'Suggest links')),
       row('Lock documents when I leave them', 'A locked document can still be read, ticked and sent, but not changed by accident. The lock above a document opens it again.', sw(!!P.autoLock, v => set('autoLock', v), 'Lock documents when I leave them')),
@@ -204,6 +206,8 @@ const VIEWS = (() => {
     if (missing.size) left.append(card('Mentioned, not written yet', h('div', { class: 'chips' }, ...[...missing].sort((a, b) => b[1].size - a[1].size).slice(0, 24).map(([t, set]) => h('button', { type: 'button', class: 'mchip', title: `Mentioned in ${plural(set.size, 'document')}. Click to write it.`, onclick: e => createFromLink(t, e.currentTarget) }, h('span', { text: t }), set.size > 1 ? h('i', { text: set.size, 'aria-label': `(in ${set.size})` }) : null)))));
     // recent
     const recent = h('div', { class: 'list' }); all.sort((a, b) => b.updated - a.updated).slice(0, 8).forEach(d => recent.append(docRow(d, ago(d.updated))));
+    // the open to-dos from the notes drawer, to tick off right here
+    const todos = DRAWER.todosCard(); if (todos) right.append(todos);
     right.append(card('Recently changed', recent.children.length ? recent : h('p', { class: 'hint', text: 'Nothing yet.' })));
     const tags = [...A.idx.tags].sort((a, b) => b[1].size - a[1].size).slice(0, 24);
     if (tags.length) right.append(card('Tags', h('div', { class: 'chips' }, ...tags.map(([t, s]) => h('button', { type: 'button', class: 'mchip tagc', onclick: () => { $('#sideFilter').value = '#' + t; A.prefs.sideHidden = false; renderSide(); $('#sideFilter').focus(); } }, h('span', { text: '#' + t }), h('i', { text: s.size }))))));
