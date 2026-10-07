@@ -546,6 +546,23 @@ document.addEventListener('mouseover', e => {
   if (a === hovFor) return;
   clearTimeout(hovT); hovT = setTimeout(() => peek(a), 900);
 });
+// how a document begins, kept in its shape: its first sections under their headings, lists as lists, a few lines in all
+function excerptOf(src) {
+  const out = h('div', { class: 'hx' }); let n = 0, sec = null;
+  for (const raw of String(src).split(/\r?\n/)) {
+    if (n >= 6) break;
+    const l = raw.trim(); if (!l || /^(>|\||---|```|!\[)/.test(l)) continue;
+    const hd = /^#{1,6}\s+(.*)/.exec(l);
+    if (hd) { if (n >= 4) break; sec = h('div', { class: 'hxs' }, h('div', { class: 'hxh', text: MD.plain(hd[1]).trim() })); out.append(sec); continue; }
+    const li = /^(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?(.*)/.exec(l);
+    const t = MD.plain(li ? li[1] : l).replace(/\s+/g, ' ').trim(); if (!t) continue;
+    const el = h(li ? 'li' : 'p', { text: t.length > 150 ? t.slice(0, 150) + '…' : t }), box = sec || out;
+    if (li) { let ul = box.lastElementChild; if (!ul || ul.tagName !== 'UL') { ul = h('ul'); box.append(ul); } ul.append(el); } else box.append(el);
+    n++;
+  }
+  out.querySelectorAll('.hxs').forEach(x => { if (x.children.length < 2) x.remove(); });
+  return out.children.length ? out : null;
+}
 async function peek(a, sticky) {
   const card = $('#hov'); clearTimeout(hovT);
   if (!sticky && card.classList.contains('sticky')) return;
@@ -564,8 +581,7 @@ async function peek(a, sticky) {
       h('div', { class: 'hname' }, h('div', { class: 'hk', style: `--c:${typeColor(d)}`, html: icon(TYPES[d.type].icon) + `<span>${TYPES[d.type].name}</span>` }), h('b', { class: 'ht', text: d.title }))));
     if (flds.length) card.append(h('div', { class: 'hf' }, ...flds.map(([k, l]) => h('span', {}, h('i', { text: l + ' ' }), String(d.fields[k])))));
     const src = player ? MD.forPlayers(d.body || '') : String(d.body || '').replace(/^> \[!secret\][^\n]*(\n>[^\n]*)*/gm, '');
-    const txt = MD.plain(src.split(/\r?\n/).filter(l => !/^\s*#{1,6}\s/.test(l)).join('\n')).replace(/\s+/g, ' ').trim();
-    card.append(h('p', { text: txt ? txt.slice(0, 240) + (txt.length > 240 ? '…' : '') : 'Nothing written yet.' }));
+    card.append(excerptOf(src) || h('p', { class: 'hint', text: 'Nothing written yet.' }));
     hydrate(card);
   } else if (a.dataset.unknown) {
     // a link the reader can't open: the GM hasn't shared it (or it isn't written)
