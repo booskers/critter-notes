@@ -17,7 +17,7 @@ if (process.env.CBN_USERDATA) app.setPath('userData', process.env.CBN_USERDATA);
 if (process.env.CBN_DOCUMENTS) app.setPath('documents', process.env.CBN_DOCUMENTS);
 let win = null;
 // updates from the GitHub releases (updater.js); Notes writes its last changes before the installer takes over
-const updates = require('./updater')({ owner: 'booskers', repo: 'critter-notes', name: 'Critter Notes', parent: () => win, page: () => win && win.webContents,
+const updates = require('./updater')({ owner: 'booskers', repo: 'critter-notes', name: 'Critter Notes', appId: 'app.critboard.notes', parent: () => win, page: () => win && win.webContents,
   beforeInstall: () => new Promise(res => { if (!win || win.isDestroyed()) return res(); win.once('closed', res); win.close(); }) });
 
 /* ---------- settings and the campaigns folder ---------- */

@@ -10,7 +10,7 @@ Made with love by booskers / Polychrome. MIT License, see [LICENSE](LICENSE). Wh
 ```
 npm install
 npm start          # builds www/ and opens the app
-npm run dist       # dist/Critter Notes Setup <version>.exe (unsigned)
+npm run dist       # dist/Critter-Notes-Setup.exe (Critter Setup, unsigned) + .blockmap + latest.yml
 npm run icons      # remakes the icons from logo-src/critter-logo.svg (Electron draws them)
 ```
 
@@ -105,9 +105,9 @@ and plays cues from `lobbies/<code>/cues/<id>` `{ op, kind, ref, name, ts, sig }
 The app updates itself from this repository's releases (`updater.js`, electron-updater). Settings › Updates turns the check
 when Notes starts on or off; Settings › Help and the logo menu have **Check for updates**. The pop-up lists up to five changes
 (the release notes' list, or this version's section of `CHANGELOG.md`), with **Update now**, **Later** and **Skip this version**,
-then shows the download and hands over to the installer, which shows its progress and opens Notes again.
-A release needs `Critter-Notes-Setup.exe`, its `.blockmap` and `latest.yml` from `dist/` (`npm run dist` makes all three).
-Testing: `UPDATE_TEST_FEED=<url of a folder with latest.yml>` and `UPDATE_TEST_VERSION=<x.y.z>`.
+then shows the download and the install.
+
+Installing uses **Critter Setup** (`installer/`, the same in Critter VTT, Critter Sounds and Critter Notes): one small C# program, compiled when building with the C# compiler every Windows has, and the app's files packed behind it by `installer/pack.mjs` (name, colour, logo and files come from `package.json` › `critterSetup`, so the engine itself doesn't change from release to release). Its window follows the Critter look in dark or light, Windows' high-contrast colours, text size and animation settings, and reads out properly in screen readers. It installs for the user without administrator rights (`/S` silent, `/D=<folder>`, `--no-desktop`) and puts an uninstaller in the app's folder. Updates happen inside Notes: the pop-up downloads the new setup file (only the parts that changed, usually a megabyte or two), unpacks it beside the app with its own progress bar, and Notes restarts and says **Update successful**. Afterwards the download and everything else the update used are deleted; only the updater's `installer.exe` stays (a copy of the installed version, so the next update downloads just what changed). Installs made by the old NSIS installer switch over on their first update (a small progress window, then the app opens again). A release needs `Critter-Notes-Setup.exe`, its `.blockmap` and `latest.yml` from `dist/` (`npm run dist` makes all three). Testing: `UPDATE_TEST_FEED=<url of a folder with latest.yml>`, `UPDATE_TEST_VERSION=<x.y.z>`; `SETUP_TEST=1 node installer/pack.mjs` packs a " Test" edition with its own folder and Apps entry.
 
 ## Accessibility
 

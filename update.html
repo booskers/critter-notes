@@ -13,7 +13,7 @@ html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 "Atkinso
 body{background:radial-gradient(420px 200px at 100% -10%,color-mix(in oklab,var(--accent) 16%,transparent),transparent 70%),var(--bg)}
 #box{padding:0 22px 20px}
 header{display:flex;align-items:center;gap:10px;height:44px;-webkit-app-region:drag}
-header .nm{flex:1;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+header .nm{flex:1;font-size:13px;font-weight:700;color:var(--ink-2)}
 .x{-webkit-app-region:no-drag;width:30px;height:30px;border:0;border-radius:8px;background:none;color:var(--ink-2);display:grid;place-items:center;cursor:pointer}
 .x:hover{background:var(--hover);color:var(--ink)}
 .x[hidden]{display:none}
@@ -43,6 +43,9 @@ li::before{content:"";position:absolute;left:3px;top:.62em;width:6px;height:6px;
 .bar.indet>i{width:34%;animation:slide 1.2s ease-in-out infinite}
 @keyframes slide{from{left:-34%}to{left:100%}}
 .note{margin:10px 0 0;font-size:12.5px;color:var(--ink-3)}
+.ok{display:flex;align-items:center;gap:10px}.ok h1{margin:2px 0 4px}
+.tick{flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent);position:relative}
+.tick::after{content:"";position:absolute;left:9px;top:5px;width:6px;height:11px;border:solid var(--on-accent);border-width:0 2.5px 2.5px 0;transform:rotate(45deg)}
 .err{color:#ff8b7f}:root[data-theme=light] .err{color:#a3231a}
 @media (prefers-reduced-motion:reduce){.bar.indet>i{animation:none;width:100%;opacity:.45}.bar>i{transition:none}}
 </style>
@@ -69,7 +72,7 @@ const btn = (text, act, cls = '') => el('button', { type: 'button', class: 'btn 
 const mb = n => (n / 1048576).toFixed(n > 104857600 ? 0 : 1);
 const bar = (pct, indet, label) => { const b = el('div', { class: 'bar' + (indet ? ' indet' : ''), role: 'progressbar', 'aria-label': label, 'aria-valuemin': '0', 'aria-valuemax': '100' }, el('i')); if (!indet) { b.setAttribute('aria-valuenow', String(Math.round(pct))); b.firstChild.style.width = Math.max(0, Math.min(100, pct)) + '%'; } return b; };
 const prog = s => s.total ? `${mb(s.done)} ${T('of', 'von')} ${mb(s.total)} MB${s.speed ? ' · ' + mb(s.speed) + ' MB/s' : ''}` : T('Starting…', 'Beginnt…');
-const busy = () => st.step === 'downloading' || st.step === 'installing';
+const busy = () => st.step === 'downloading' || st.step === 'installing' || st.step === 'restarting';
 function draw() {
   const c = $('#c'), s = st, kids = [];
   $('#x').hidden = busy();
@@ -84,14 +87,23 @@ function draw() {
     if (s.notes && s.notes.length) kids.push(el('ul', {}, ...s.notes.map(n => el('li', { text: n }))));
     kids.push(el('button', { type: 'button', class: 'link', text: T('Read the full changelog', 'Das ganze Änderungsprotokoll lesen'), onclick: () => upd.act('changelog') }),
       el('div', { class: 'row' }, btn(T('Skip this version', 'Diese Version überspringen'), 'skip', 'ghost'), el('span', { class: 'grow' }), btn(T('Later', 'Später'), 'later'), btn(T('Update now', 'Jetzt aktualisieren'), 'update', 'primary')));
-  } else if (s.step === 'downloading' || s.step === 'installing') {
-    const inst = s.step === 'installing', pct = inst ? 100 : (s.percent || 0);
-    const dl = inst ? T('Done', 'Fertig') : prog(s);
-    kids.push(el('h1', { id: 't', text: inst ? T('Installing ', 'Installiere ') + name + ' ' + (s.version || '') : T('Downloading ', 'Lade ') + name + ' ' + (s.version || '') + T('', ' herunter') }),
-      el('p', { class: 'sub', id: 's', text: inst ? T(name + ' closes now; the installer shows its progress and opens it again.', name + ' schließt sich jetzt; das Installationsprogramm zeigt seinen Fortschritt und öffnet es wieder.') : T('You can keep working while it downloads.', 'Du kannst weiterarbeiten, während es lädt.') }),
+  } else if (s.step === 'downloading' || s.step === 'installing' || s.step === 'restarting') {
+    // one window from start to finish: download, install (unpacked by the app itself), then the app restarts
+    const inst = s.step !== 'downloading', restart = s.step === 'restarting', pct = inst ? 100 : (s.percent || 0);
+    const ipct = restart ? 100 : inst ? (s.percent || 0) : 0, handover = !!s.handover;
+    const title = restart ? T('Restarting ', 'Starte ') + name + T('…', ' neu…') : inst ? T('Installing ', 'Installiere ') + name + ' ' + (s.version || '') : T('Downloading ', 'Lade ') + name + ' ' + (s.version || '') + T('', ' herunter');
+    const sub = handover ? T(name + ' closes now and opens again when the new version is in.', name + ' schließt sich jetzt und öffnet sich wieder, sobald die neue Version drin ist.')
+      : restart ? T(name + ' closes and opens again by itself in a moment.', name + ' schließt sich und öffnet sich gleich von selbst wieder.')
+      : inst ? T('Almost there. ' + name + ' restarts by itself when it\'s done.', 'Fast geschafft. ' + name + ' startet danach von selbst neu.')
+      : T('You can keep working while it downloads.', 'Du kannst weiterarbeiten, während es lädt.');
+    kids.push(el('h1', { id: 't', text: title }), el('p', { class: 'sub', id: 's', text: sub }),
       el('div', { class: 'steps' },
-        el('div', { class: 'step' }, el('div', { class: 'lbl' }, el('b', { text: T('1  Download', '1  Herunterladen') }), el('span', { text: inst ? '100 %' : Math.round(pct) + ' %  ·  ' + dl })), bar(pct, false, T('Download', 'Herunterladen'))),
-        el('div', { class: 'step' + (inst ? '' : ' wait') }, el('div', { class: 'lbl' }, el('b', { text: T('2  Install', '2  Installieren') }), el('span', { text: inst ? T('Starting the installer…', 'Das Installationsprogramm startet…') : T('Waits for the download', 'Wartet auf den Download') })), bar(0, inst, T('Install', 'Installieren')))));
+        el('div', { class: 'step' }, el('div', { class: 'lbl' }, el('b', { text: T('1  Download', '1  Herunterladen') }), el('span', { text: inst ? '100 %' : Math.round(pct) + ' %  ·  ' + prog(s) })), bar(pct, false, T('Download', 'Herunterladen'))),
+        el('div', { class: 'step' + (inst ? '' : ' wait') }, el('div', { class: 'lbl' }, el('b', { text: T('2  Install', '2  Installieren') }), el('span', { text: restart || handover ? T('Restarting…', 'Neustart…') : inst ? Math.round(ipct) + ' %' : T('Waits for the download', 'Wartet auf den Download') })), bar(ipct, handover, T('Install', 'Installieren')))));
+  } else if (s.step === 'updated') {
+    kids.push(el('div', { class: 'ok' }, el('span', { class: 'tick', 'aria-hidden': 'true' }), el('h1', { id: 't', text: T('Update successful', 'Aktualisierung erfolgreich') })),
+      el('p', { class: 'sub', id: 's', text: T(name + ' is now on version ' + s.version + (s.from ? ' (you had ' + s.from + ').' : '.'), name + ' ist jetzt auf Version ' + s.version + (s.from ? ' (vorher ' + s.from + ').' : '.')) }),
+      el('div', { class: 'row' }, el('button', { type: 'button', class: 'link', text: T('See what\'s new','Was ist neu?'), onclick: () => upd.act('changelog') }), el('span', { class: 'grow' }), btn(T('OK', 'OK'), 'close', 'primary')));
   } else if (s.step === 'error') {
     kids.push(el('h1', { id: 't', text: T('The update didn\'t work', 'Die Aktualisierung hat nicht geklappt') }), el('p', { class: 'sub err', id: 's', text: s.message || T('Something went wrong.', 'Etwas ist schiefgegangen.') }),
       el('div', { class: 'row' }, btn(T('Open the releases page', 'Versionsseite öffnen'), 'releases', 'ghost'), el('span', { class: 'grow' }), btn(T('Close', 'Schließen'), 'close'), btn(T('Try again', 'Nochmal versuchen'), 'retry', 'primary')));
@@ -103,8 +115,9 @@ function draw() {
     if (!busy() && (!had || !c.contains(document.activeElement))) { const p = c.querySelector('.btn.primary') || c.querySelector('.btn'); if (p) p.focus(); }
   });
 }
-upd.onState(s => { const step = st.step; st = s; if (step === s.step && s.step === 'downloading') { // only the numbers move: keep focus and avoid a redraw
-    const b = document.querySelector('.step .bar'); if (b) { b.firstChild.style.width = Math.max(0, Math.min(100, s.percent || 0)) + '%'; b.setAttribute('aria-valuenow', String(Math.round(s.percent || 0))); const sp = document.querySelector('.step .lbl span'); if (sp) sp.textContent = Math.round(s.percent || 0) + ' %  ·  ' + prog(s); return; } }
+upd.onState(s => { const step = st.step; st = s; if (step === s.step && (s.step === 'downloading' || (s.step === 'installing' && !s.handover))) { // only the numbers move: keep focus and avoid a redraw
+    const i = s.step === 'downloading' ? 0 : 1, b = document.querySelectorAll('.step .bar')[i], sp = document.querySelectorAll('.step .lbl span')[i], p = Math.max(0, Math.min(100, s.percent || 0));
+    if (b && sp) { b.firstChild.style.width = p + '%'; b.setAttribute('aria-valuenow', String(Math.round(p))); sp.textContent = Math.round(p) + ' %' + (i ? '' : '  ·  ' + prog(s)); return; } }
   draw(); });
 $('#x').onclick = () => upd.act('close');
 $('#x').title = T('Close', 'Schließen'); $('#x').setAttribute('aria-label', T('Close', 'Schließen'));

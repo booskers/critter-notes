@@ -9,7 +9,7 @@
     "build-www": "node build.mjs",
     "start": "node build.mjs && electron .",
     "icons": "electron make-icons.cjs",
-    "dist": "node build.mjs && electron-builder --win nsis"
+    "dist": "node build.mjs && electron-builder --win dir && node installer/pack.mjs"
   },
   "build": {
     "appId": "app.critboard.notes",
@@ -28,14 +28,8 @@
       "output": "dist"
     },
     "win": {
-      "target": "nsis",
+      "target": "dir",
       "icon": "build/icon.ico"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "shortcutName": "Critter Notes",
-      "artifactName": "Critter-Notes-Setup.${ext}"
     },
     "publish": [
       {
@@ -44,6 +38,14 @@
         "repo": "critter-notes"
       }
     ]
+  },
+  "critterSetup": {
+    "name": "Critter Notes",
+    "accent": "#ffbd00",
+    "dataDirs": [
+      "Critter Notes"
+    ],
+    "artifactName": "Critter-Notes-Setup"
   },
   "devDependencies": {
     "electron": "^44.5.1",
