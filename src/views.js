@@ -13,6 +13,7 @@ const VIEWS = (() => {
     main.append(h('div', { class: 'hero' },
       h('span', { class: 'heroicon logomark', role: 'img', 'aria-label': 'Critter Notes' }),
       h('h1', { text: 'Critter Notes' }),
+      window.APP_VERSION ? h('span', { class: 'appver', text: 'Version ' + window.APP_VERSION }) : null,
       h('p', { class: 'lead', text: 'Plan sessions, write your world, draw maps, boards and mind maps, and bring it all to your Critter VTT table.' }),
       h('div', { class: 'wchoices' },
         choice('lore', 'Start my own campaign', 'You\'re the GM. It\'s kept on this computer, and you can share it with co-writers and players later.',

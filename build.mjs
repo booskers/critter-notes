@@ -33,7 +33,9 @@ if (process.env.HOMEBASE_SERVER !== undefined) cfg.server = process.env.HOMEBASE
 if (!cfg.server) delete cfg.server;
 delete cfg.firebase;
 await build({ entryPoints: [join(shared, 'homebase-client.js')], bundle: true, format: 'iife', minify: true, target: 'chrome120', outfile: join(out, 'homebase.js'), logLevel: 'warning' });
-await writeFile(join(out, 'config.js'), `window.HOMEBASE_CONFIG = ${JSON.stringify(cfg)};\n`);
+// the version shows under the logo; it comes from package.json
+const version = JSON.parse(await readFile(join(here, 'package.json'), 'utf8')).version;
+await writeFile(join(out, 'config.js'), `window.HOMEBASE_CONFIG = ${JSON.stringify(cfg)};\nwindow.APP_VERSION = ${JSON.stringify(version)};\n`);
 
 for (const f of await readdir(join(here, 'src'))) await copyFile(join(here, 'src', f), join(out, f));
 await mkdir(join(out, 'srd'), { recursive: true });
