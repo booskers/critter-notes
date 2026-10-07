@@ -8,20 +8,20 @@ const LINKUI = (() => {
   function settingsSection(sec, row) {
     if (!A.camp || SYNC.isPlayer()) return null;
     if (!LINK.linked()) return sec('Your devices',
-      row('Link a phone, tablet or browser', 'This campaign on your other devices, kept in step both ways: what you add or remove on one, the others do too. End-to-end encrypted: the Homebase only carries it, it can\'t read it. On the same Wi-Fi the other device finds this one by itself.', btn('link', 'Link a device…', () => offerDialog(), 'tiny primary')),
+      row('Link a phone, tablet or browser', 'This campaign on your phone, tablet or a browser, kept in step both ways: what you add or remove on one, the others do too. Nothing is stored on the Homebase: your devices keep the campaign and talk to each other directly when they can, encrypted either way, while both are open. On the same Wi-Fi the other device finds this one by itself.', btn('link', 'Link a device…', () => offerDialog(), 'tiny primary')),
       row('This device', LINK.deviceName(), btn('edit', 'Rename…', () => renameDevice(), 'tiny ghost')));
     const L = LINK.L, list = h('div', { class: 'devlist' }, h('p', { class: 'hint', text: 'Looking…' }));
     LINK.devices().then(ds => list.replaceChildren(...(ds.length ? ds : [{ n: LINK.deviceName(), here: true }]).map(d => h('div', { class: 'devrow' + (d.here || d.live ? ' live' : '') },
       h('span', { class: 'dot', 'aria-hidden': 'true' }), h('b', { text: d.n || 'A device' }),
-      h('small', { text: d.here ? 'this device' : d.live ? 'here now' : 'last seen ' + ago(d.seen) }))))).catch(() => list.replaceChildren(h('p', { class: 'hint', text: 'Offline: the list comes back with the connection.' })));
-    const state = h('span', { text: L.status === 'ok' ? `In step. Checked ${ago(L.checked)}.` : L.status === 'offline' ? 'Offline: changes are kept here and go out when the connection is back.' : 'Checking…' });
+      h('small', { text: d.here ? 'this device' : d.live ? (d.direct ? 'open now · direct' : 'open now · through the Homebase') : 'last seen ' + ago(d.seen) })))));
+    const state = h('span', { text: L.status === 'ok' ? `In step with the devices open now${L.checked ? ', checked ' + ago(L.checked) : ''}.` : L.status === 'alone' ? 'No other device is open right now. Changes are kept here; the others catch up when they\'re open at the same time as this one.' : L.status === 'offline' ? 'No connection: changes are kept here and go over when it\'s back.' : 'Checking…' });
     return sec('Your devices',
       h('div', { class: 'setrow' }, h('div', { class: 'sl' }, h('b', { text: 'Linked' }), state), h('div', { class: 'sc' },
-        btn('refresh', 'Sync check', async e => { const b = e.currentTarget; b.disabled = true; const r = await LINK.check(); b.disabled = false; toast(r.ok ? `All ${plural(r.docs, 'document')} match on this device and the link.` : r.why || `${plural(r.differ, 'document')} differed and ${r.differ === 1 ? 'is' : 'are'} being brought in step.`); renderMain(); }, 'tiny'),
+        btn('refresh', 'Sync check', async e => { const b = e.currentTarget; b.disabled = true; const r = await LINK.check(); b.disabled = false; toast(r.why || (r.ok ? `All ${plural(r.docs, 'document')} match on ${r.devices === 1 ? 'both devices' : 'every open device'}.` : `${plural(r.differ, 'document')} still differ; they're being brought in step.`)); renderMain(); }, 'tiny'),
         btn('link', 'Link another…', () => offerDialog(), 'tiny ghost'))),
       h('div', { class: 'setrow' }, h('div', { class: 'sl' }, h('b', { text: 'Devices' }), list)),
       row('This device', LINK.deviceName(), btn('edit', 'Rename…', () => renameDevice(), 'tiny ghost'), btn(null, 'Unlink this device', async () => { if (await confirmBox('Unlink this device?', 'The campaign stays here as it is now, but stops keeping in step with your other devices.', 'Unlink')) { await LINK.unlinkHere(); renderMain(); toast('This device is unlinked.'); } }, 'tiny ghost')),
-      row('A device lost or given away?', 'Remove the link everywhere: the Homebase forgets it, every device keeps its own copy, unlinked. Then link the devices you keep again (with a new key).', btn('trash', 'Remove the link…', async () => { if (await confirmBox('Remove the link everywhere?', 'Every device keeps its own copy of the campaign, but they stop keeping in step. Link them again afterwards with a new key.', 'Remove it', true)) { await LINK.wipe(); renderMain(); toast('The link is removed. Link your devices again when you like.'); } }, 'tiny ghost bad')));
+      row('A device lost or given away?', 'Make a new key: this device starts a new link, and you link the devices you keep again. The old one can\'t reach them any more.', btn('lock', 'New key…', async () => { if (await confirmBox('Make a new key?', 'Your other devices stop keeping in step with this one until you link them again (Link a device). Each keeps its own copy meanwhile.', 'Make a new key', true)) { await LINK.wipe(); renderMain(); toast('New key made. Link the devices you keep again.'); } }, 'tiny ghost bad')));
   }
   async function renameDevice() { const n = await ask('What should this device be called?', LINK.deviceName(), { ok: 'Rename' }); if (n) { LINK.rename(n); renderMain(); } }
 
@@ -30,8 +30,6 @@ const LINKUI = (() => {
     const body = h('div', { class: 'linkoffer' }, h('p', { class: 'hint', text: 'Getting a code…' }));
     const m = modal('Link a device', body, [btn(null, 'Done', () => m.close(), 'primary')], { onClose: () => LINK.endOffer() });
     try {
-      const first = !LINK.linked();
-      if (first) body.replaceChildren(h('p', { class: 'hint', text: 'Getting this campaign ready to link: it goes up encrypted, document by document…' }));
       const o = await LINK.offer(req => {
         const card = h('div', { class: 'linkreq', role: 'group', 'aria-label': 'A device wants to link' },
           h('p', {}, h('b', { text: req.name }), ' wants to link. Does it show these digits?'),

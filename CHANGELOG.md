@@ -2,9 +2,9 @@
 
 ## Next (not released yet)
 - Your devices: link a campaign to your phone, tablet or a browser (notes.crittervtt.com), and it stays in step both ways: what you add, change, trash or restore on one, the others do too. On the same Wi-Fi the phone finds the computer by itself; anywhere else it types a 6-letter code. Both screens show the same four digits and the computer approves it.
-- End-to-end encrypted with a key only your devices have: the Homebase carries the campaign but can't read it. Only a small index is watched; a change sends about its own size.
-- A document changed on two devices while they were apart keeps both: the newer one wins, the other waits in the trash as a "conflict copy".
-- Settings › Your devices: which devices are linked and which are here now, a sync check that compares everything, renaming this device, unlinking it, or removing the link everywhere (for a lost device).
+- Nothing is stored on the Homebase: every device keeps the whole campaign, and devices talk to each other directly (inside your home network when they share one). Where a network won't allow that, the Homebase passes their messages along, end-to-end encrypted with a key only your devices have. Changes travel while both devices are open; one that was closed catches up the next time both are.
+- Changed on two devices while they were apart: the newer version wins on every device, and the other waits in the trash as a "conflict copy". A change always wins over a deletion it never saw, so no work is lost to it.
+- Settings › Your devices: which devices are linked and which are open now (directly or through the Homebase), a sync check that compares everything and repairs what differs, renaming this device, unlinking it, or a new key (for a lost device).
 - The trash: deleted documents wait 30 days (the trash button beside Settings), to restore or delete for good; on linked devices too. Undo brings a deleted document back from it.
 
 ## 1.5.2 (2026-10-07)

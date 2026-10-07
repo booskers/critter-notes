@@ -56,7 +56,7 @@ const STORE = (() => {
     async copyImage(from, to, file) { const b = await tx('images', 'readonly', s => req(s.get(from + '/' + file))); if (b) await tx('images', 'readwrite', s => { s.put(b, to + '/' + file); }); },
     async imageUrl(cid, file) {
       const k = cid + '/' + file; if (urls.has(k)) return urls.get(k);
-      const b = await tx('images', 'readonly', s => req(s.get(k))); const u = b ? URL.createObjectURL(b) : ''; urls.set(k, u); return u;
+      const b = await tx('images', 'readonly', s => req(s.get(k))); const u = b ? URL.createObjectURL(b) : ''; if (u) urls.set(k, u); return u;
     },
     // in a browser, Markdown goes out as one .zip (webapp.js)
     exportMd: (cid, name, files) => WEB.exportMdZip(cid, name, files),
