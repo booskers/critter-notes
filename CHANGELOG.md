@@ -1,6 +1,7 @@
 # Changelog
 
-## Next
+## 1.5.0 (2026-10-07)
+- Critter Setup, a new installer in the Critter look; updates now download only what changed.
 - The notes drawer: a tab at the bottom of the window (Ctrl+J) slides up into a canvas of to-do lists, notes and links. Drag it taller or shorter, right-click for something new, and drag a block onto a document to put it there. Open to-dos show on Home; Settings can turn it off.
 - A global undo history: Ctrl+Z and Ctrl+Y anywhere outside a text field, a rename or a delete is one step, a history window to go back several steps, and the number of steps in Settings › Writing.
 - Right-click menus everywhere that right-click did nothing: documents (links, chips, cards, timeline events, graph nodes) get their menu, and empty space offers undo, new, find, back, home and settings.
