@@ -28,7 +28,7 @@ module.exports = function setupUpdates({ owner, repo, name, parent, page, before
       const yml = path.join(app.getPath('userData'), 'dev-app-update.yml'), cache = `updaterCacheDirName: ${repo}-updater\n`;
       try { fs.mkdirSync(path.dirname(yml), { recursive: true }); fs.writeFileSync(yml, process.env.UPDATE_TEST_FEED ? `provider: generic\nurl: ${process.env.UPDATE_TEST_FEED}\n${cache}` : `provider: github\nowner: ${owner}\nrepo: ${repo}\n${cache}`); au.updateConfigPath = yml; } catch {}
     }
-    if (process.env.UPDATE_TEST_VERSION) { try { const { SemVer } = require('semver'); au.currentVersion = new SemVer(process.env.UPDATE_TEST_VERSION); } catch {} }
+    if (process.env.UPDATE_TEST_VERSION) { try { const { SemVer } = require(require.resolve('semver', { paths: [path.dirname(require.resolve('electron-updater'))] })); au.currentVersion = new SemVer(process.env.UPDATE_TEST_VERSION); } catch {} }
   }
   const current = () => (au && au.currentVersion && au.currentVersion.version) || app.getVersion();
 
