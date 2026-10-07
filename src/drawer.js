@@ -37,7 +37,7 @@ const DRAWER = (() => {
   function build() {
     const grip = h('div', { class: 'drgrip', role: 'separator', 'aria-orientation': 'horizontal', 'aria-label': 'Drawer height', 'aria-valuemin': '170', 'aria-valuemax': String(innerHeight - 90), 'aria-valuenow': String(H()), tabIndex: 0, title: 'Drag to make the drawer taller or shorter (or the arrow keys)' });
     const told = () => { grip.setAttribute('aria-valuenow', String(Math.round(panel.offsetHeight || H()))); grip.setAttribute('aria-valuemax', String(innerHeight - 90)); };
-    canvas = h('div', { class: 'drcanvas', tabIndex: 0, 'aria-label': 'The drawer\'s canvas. Right-click for a new to-do list or note; drag empty space to move around.' });
+    canvas = h('div', { class: 'drcanvas', role: 'group', tabIndex: 0, 'aria-label': 'The drawer\'s canvas. Right-click for a new to-do list or note; drag empty space to move around.' });
     world = h('div', { class: 'drworld' }); canvas.append(world);
     const head = h('div', { class: 'drhead' },
       h('b', { text: 'Notes drawer' }), h('span', { class: 'hint', text: 'Right-click for a to-do list or a note · drag a block onto a document to put it there' }), h('span', { class: 'grow' }),

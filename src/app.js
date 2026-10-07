@@ -249,7 +249,7 @@ const PAGES = {
 function go(view, replace) {
   // leaving a document locks it, when that's how you like it
   if (A.prefs.autoLock && A.view.k === 'doc' && (view.k !== 'doc' || view.id !== A.view.id)) { const was = A.docs.get(A.view.id); if (was && !was.locked && was.body.trim()) { if (A.ed) A.ed.commit(); was.locked = true; touch(was, true); } }
-  if (A.view.k !== 'none' && !replace && JSON.stringify(view) !== JSON.stringify(A.view)) { A.back.push(A.view); A.fwd = []; if (A.back.length > 80) A.back.shift(); }
+  if (A.view.k !== 'none' && !replace && JSON.stringify(view) !== JSON.stringify(A.view)) { A.back.push(A.view); A.fwd = []; if (A.back.length > 80) A.back.shift(); webHistory(); }
   A.view = view;
   if (A.camp) { A.camp.last = view.k === 'doc' && A.docs.has(view.id) ? view.id : ''; saveCampSoon(); }
   render();
@@ -258,14 +258,25 @@ function go(view, replace) {
   if (!replace && document.activeElement && document.activeElement.closest && !document.activeElement.closest('#side,#main,#right')) setTimeout(() => { const t = $('#main h1, #main .title'); if (t && view.line === undefined) t.focus({ preventScroll: true }); }, 40);
 }
 const saveCampLater = debounceMax(() => { campPending = false; saveCamp(); }, 800, 3000), saveCampSoon = () => { campPending = true; saveCampLater(); };
-function goBack() { if (!A.back.length) return; A.fwd.push(A.view); A.view = A.back.pop(); render(); }
-function goFwd() { if (!A.fwd.length) return; A.back.push(A.view); A.view = A.fwd.pop(); render(); }
+function backNow() { if (!A.back.length) return; A.fwd.push(A.view); A.view = A.back.pop(); render(); }
+function fwdNow() { if (!A.fwd.length) return; A.back.push(A.view); A.view = A.fwd.pop(); render(); }
+// in a browser, Notes' pages are the browser's history too: its back button, Alt+arrows and the iPhone's and iPad's
+// swipe from the left edge all go back a page in Notes (the desktop app has its own buttons and keys)
+const inBrowser = !window.desk;
+let histN = 0;
+function webHistory() { if (!inBrowser) return; histN = A.back.length; try { history.pushState({ nv: histN }, ''); } catch {} }
+function goBack() { if (!A.back.length) return; if (inBrowser && history.state && history.state.nv) history.back(); else backNow(); }
+function goFwd() { if (!A.fwd.length) return; if (inBrowser) history.forward(); else fwdNow(); }
+if (inBrowser) {
+  try { history.replaceState({ nv: 0 }, ''); } catch {}
+  addEventListener('popstate', e => { const n = (e.state && e.state.nv) || 0; if (n < A.back.length) backNow(); else if (n > A.back.length && A.fwd.length) fwdNow(); });
+}
 const openDoc = (id, extra) => { if (D(id)) go({ k: 'doc', id, ...(extra || {}) }); };
 const modeOf = d => { const m = A.modes.get(d.id); if (isRO(d)) return m === 'mind' ? 'mind' : 'read'; if (d.type === 'board' || d.type === 'map') return 'read'; return m === 'mind' || m === 'run' ? m : 'read'; };
 function setMode(d, m) { if (A.ed) A.ed.commit(); A.modes.set(d.id, m); renderMain(); }
 
 /* ============================== rendering ============================== */
-function render() { applyLook(); renderSide(); renderMain(); renderRight(); paintTitle(); }
+function render() { applyLook(); renderSide(); renderMain(); renderRight(); paintTitle(); MOBILE.onRender(); }
 function paintTitle() {
   const d = A.view.k === 'doc' && D(A.view.id), p = PAGES[A.view.k];
   $('#winTitle').textContent = A.camp ? (d ? d.title + ' · ' : p && A.view.k !== 'home' ? p.name + ' · ' : '') + A.camp.name : '';
@@ -443,7 +454,7 @@ function renderDoc(main, d) {
     full ? h('button', { type: 'button', class: 'ib' + (A.prefs.drawer ? ' on' : ''), 'aria-pressed': String(!!A.prefs.drawer), title: 'Details and notes', 'aria-label': 'Details and notes', html: icon('panel'), onclick: () => { A.prefs.drawer = !A.prefs.drawer; savePrefs(); renderMain(); } }) : null,
     lockBtn,
     !full ? h('button', { type: 'button', class: 'ib mindb' + (mode === 'mind' ? ' on' : ''), title: 'Mind map (Ctrl+M)', 'aria-label': 'Mind map', 'aria-pressed': String(mode === 'mind'), html: icon('mind'), onclick: () => setMode(d, mode === 'mind' ? 'read' : 'mind') }) : null,
-    SYNC.isPlayer() ? null : btn('send', 'Send to table', e => VIEWS.sendMenu(d, e.currentTarget), 'tiny primary sendb'),
+    SYNC.isPlayer() ? null : Object.assign(btn('send', 'Send to table', e => VIEWS.sendMenu(d, e.currentTarget), 'tiny primary sendb'), { ariaLabel: 'Send to table' }),   // (its words fold away when narrow)
     ro || SYNC.isPlayer() ? null : ib('dots', 'More for this document', e => docMenu(d, e.currentTarget)));
   main.append(bar);
   if (mode === 'mind') { main.append(h('h1', { class: 'sr', text: `${d.title}: mind map` }), mindPane(d)); return; }

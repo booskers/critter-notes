@@ -1067,3 +1067,94 @@ body.touring #hov{z-index:2150}
 /* the dyslexia font set: a little more room between lines and words */
 html.dysfont body{line-height:1.55;letter-spacing:.01em;word-spacing:.06em}
 html.dysfont .prose,html.dysfont .vis{line-height:1.75}
+
+/* ============================== phones and tablets (body.phone ≤ 700px, body.tablet ≤ 1100px, body.touch) ============================== */
+:root{--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);--sal:env(safe-area-inset-left,0px);--sar:env(safe-area-inset-right,0px);--appbar:50px;--tabbar:58px}
+/* the sidebar slides in over the page; the page dims behind it */
+body.phone #side,body.tablet #side{display:flex!important;position:fixed;top:0;bottom:0;left:0;width:min(340px,86vw);z-index:890;padding-top:calc(var(--appbar) + var(--sat));padding-left:var(--sal);transform:translateX(-105%);visibility:hidden;transition:transform .28s cubic-bezier(.2,.8,.2,1),visibility 0s .28s;box-shadow:none}
+body.phone.sideopen #side,body.tablet.sideopen #side{transform:none;visibility:visible;transition:transform .28s cubic-bezier(.2,.8,.2,1);box-shadow:24px 0 60px -20px rgb(0 0 0/.7)}
+body.phone #sideGrip,body.tablet #sideGrip{display:none}
+body.sideopen #app::after{content:"";position:fixed;inset:0;z-index:885;background:rgb(0 0 0/.45);animation:fadein .2s ease both}
+@keyframes fadein{from{opacity:0}}
+body.tablet #rightWrap{position:fixed;right:0;top:calc(34px + var(--sat));bottom:0;z-index:880}
+body.tablet #right{position:relative;height:100%;width:min(380px,90vw);box-shadow:-24px 0 60px -20px rgb(0 0 0/.6)}
+/* phones: an app bar at the top, a tab bar at the bottom */
+body.phone #titlebar{height:calc(var(--appbar) + var(--sat));padding:var(--sat) calc(6px + var(--sar)) 0 calc(6px + var(--sal));background:var(--surface-1,var(--panel));text-shadow:none;color:var(--ink);z-index:895}
+body.phone #titlebar .wb-brand,body.phone #fwdBtn,body.phone #focusBtn{display:none}
+body.phone #titlebar .wb-nav button{width:44px;height:44px}
+body.phone #titlebar .wb-title{font:700 15px var(--ui);justify-content:flex-start;padding:0 4px}
+body.phone #side,body.phone #right,body.phone #main{padding-top:calc(var(--appbar) + var(--sat))}
+body.phone #app{margin-bottom:calc(var(--tabbar) + var(--sab))}
+body.phone #main.flow{padding-top:0}
+body.phone #main.flow .docbar{top:calc(var(--appbar) + var(--sat))}
+body.phone #main.flow .docscroll{padding-top:calc(var(--appbar) + var(--sat) + 46px)}
+body.phone #main.flow .docscroll>.banner{margin-top:calc(-1 * (var(--appbar) + var(--sat) + 46px));height:300px}
+body.phone #main.home.hasbg .homein{padding-top:calc(var(--appbar) + var(--sat) + 16px)}
+#tabbar{position:fixed;left:0;right:0;bottom:0;z-index:875;height:calc(var(--tabbar) + var(--sab));padding:0 var(--sar) var(--sab) var(--sal);display:flex;align-items:stretch;background:var(--surface-2,var(--panel2));box-shadow:0 -10px 30px -12px rgb(0 0 0/.55)}
+.tabb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:0;background:none;color:var(--ink-2,var(--muted));font:600 11px var(--ui);cursor:pointer;min-width:44px;-webkit-tap-highlight-color:transparent}
+.tabb .tbi{position:relative;display:grid;place-items:center}.tabb .tbi .ic{width:22px;height:22px}
+.tabb.on{color:var(--accent-hi,var(--accent))}
+.tabb.new{flex:none;width:64px}.tabb.new .tbi{width:46px;height:46px;border-radius:15px;background:var(--accent);color:var(--on-accent,#111);box-shadow:inset 0 1px 0 rgb(255 255 255/.22)}
+.tbc{position:absolute;top:-5px;right:-10px;min-width:17px;height:17px;padding:0 4px;border-radius:99px;background:var(--accent);color:var(--on-accent,#111);font-size:10.5px;display:grid;place-items:center}
+/* phones: the notes drawer opens from the tab bar, the side panel and dialogs are sheets from the bottom */
+body.phone .drtab{display:none}
+body.phone .ndrawer{bottom:calc(var(--tabbar) + var(--sab))}
+body.phone .drpanel{left:0;right:0;border-radius:18px 18px 0 0;max-height:calc(100dvh - var(--appbar) - var(--sat) - var(--tabbar) - var(--sab) - 20px)}
+body.phone .drhead .hint{display:none}
+body.phone #rightWrap{position:fixed;left:0;right:0;bottom:0;z-index:893}
+body.phone #right{position:relative;width:100%;height:min(78dvh,640px);border-radius:18px 18px 0 0;padding-top:14px;padding-bottom:var(--sab);box-shadow:0 -24px 60px -20px rgb(0 0 0/.7)}
+body.phone #right::before,body.phone .modal .card::before{content:"";position:absolute;left:50%;top:6px;width:38px;height:5px;margin-left:-19px;border-radius:99px;background:var(--line2,var(--line))}
+body.phone #rightGrip{display:none}
+body.phone .modal{align-items:flex-end;padding:0}
+body.phone .modal .card{width:100%!important;max-width:none!important;margin:0;border-radius:18px 18px 0 0;max-height:92dvh;padding-top:22px;padding-bottom:calc(16px + var(--sab));position:relative;animation:sheetin .28s cubic-bezier(.2,.8,.2,1) both}
+@keyframes sheetin{from{transform:translateY(40%);opacity:0}}
+/* phones: the page itself */
+body.phone .page{padding:14px 16px 120px}
+body.phone .title{font-size:26px}
+body.phone .portrait{width:96px;height:96px;border-radius:18px}
+body.phone .haspic .title{font-size:26px}
+body.phone .homein{padding-left:14px;padding-right:14px}
+body.phone .hhead .quick{gap:6px}
+body.phone .tourcard{width:calc(100vw - 24px)}
+/* touch screens: room for fingers (at least 44px for the things that matter), no hover cards, gestures go to the canvases */
+body.touch .btn{min-height:40px}
+body.touch .ib{min-width:40px;min-height:40px}
+body.touch .trow{min-height:42px}
+body.touch .menu .mi{min-height:44px}
+body.touch .navb{min-height:42px}
+body.touch #hov:not(.sticky){display:none}
+body.touch button,body.touch a,body.touch .trow{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+body.touch .trow,body.touch .bcard,body.touch .tlcard,body.touch .mchip,body.touch .wl,body.touch .drb,body.touch button{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.boardhost,.maphost,.tlarea,.graphhost,.mindhost,.drcanvas{touch-action:none}
+/* iPhones zoom into any text field smaller than 16px: these never are */
+body.touch input,body.touch textarea,body.touch select,body.touch .vis{font-size:max(16px,1em)}
+/* the arrow that follows a finger from the left edge (on the home screen) */
+.edgeback{position:fixed;left:0;top:0;z-index:2000;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--surface-3,var(--panel2));color:var(--ink);box-shadow:var(--shadow-2,var(--shadow));pointer-events:none;opacity:.85}
+.edgeback .ic{width:20px;height:20px}
+.edgeback.ready{background:var(--accent);color:var(--on-accent,#111)}
+/* a document swiped left in the sidebar: More and Delete */
+#tree{position:relative}
+#tree .trow{transition:transform .2s ease}
+.rowacts{position:absolute;right:0;display:flex;z-index:2}
+.rowacts button{width:70px;border:0;font:600 13px var(--ui);color:#fff;cursor:pointer}
+.rowacts .more{background:#5b6170}.rowacts .del{background:#c42b1c}
+@media (prefers-reduced-motion:reduce){body.phone #side,body.tablet #side,body.phone .modal .card,#tree .trow{transition:none;animation:none}}
+/* phones: rows of buttons and stats wrap instead of pushing past the screen's edge */
+body.phone .row,body.phone .stats{flex-wrap:wrap}
+body.phone .stats>*{flex:1 1 30%;min-width:0}
+body.phone .hcol,body.phone .hcard,body.phone .nexts{min-width:0}
+body.phone .homebg{width:100%;left:0}
+body.phone .dtop{margin:-14px -16px 10px;padding:16px 16px 0}
+body.phone .setin{padding:16px 14px 120px;max-width:100%}
+body.phone .setrow{flex-direction:column;align-items:stretch;gap:10px}
+body.phone .setrow .sc{justify-content:flex-start;flex-wrap:wrap}
+body.phone .setsec,body.phone .phead{min-width:0;max-width:100%}
+body.phone .fontsets{grid-template-columns:1fr;padding:4px 14px 16px}
+/* phones: details as label over value, so nothing gets cut off */
+body.phone .props{grid-template-columns:1fr;row-gap:2px}
+body.phone .props>.pl{margin-top:10px;font-size:12.5px}
+body.phone .relbox{grid-template-columns:1fr}
+body.phone #side{bottom:calc(var(--tabbar) + var(--sab))}
+body.phone #tabbar{z-index:896}
+body.touch kbd,body.touch .findbtn kbd,body.touch .kbd{display:none}
+@media (max-width:900px){.dtop{margin:-20px -18px 10px;padding:22px 18px 0}}
