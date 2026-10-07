@@ -55,8 +55,10 @@ ${BUILT_IN ? `<label><input type="radio" name="hbm" value="homebase"><span><b>Ho
 }
 // (also as window.CRITBOARD_DESKTOP, its name before the rename, for anything built before it)
 window.CRITBOARD_DESKTOP = window.CRITTER_DESKTOP = { mode: MODE, server: MODE === 'homebase' ? BUILT_IN : SERVER, changeHomebase: () => setupScreen() };
-if (!MODE) setupScreen();
-if (MODE === 'homebase') startServer(BUILT_IN);
+// (a page that is only moving data to the new address doesn't connect: see app/move.js)
+if (window.__MOVING) { /* stays still */ }
+else if (!MODE) setupScreen();
+else if (MODE === 'homebase') startServer(BUILT_IN);
 else if (MODE === 'server' && SERVER) startServer(SERVER);
 
 /* ---------- shared pieces ---------- */
@@ -92,7 +94,7 @@ function startServer(base) {
     ws = new WebSocket(base.replace(/^http/, 'ws') + '/ws');
     ws.onopen = () => {
       open = true; backoff = 500;
-      ws.send(JSON.stringify({ t: 'hello', uid, key }));
+      ws.send(JSON.stringify({ t: 'hello', uid, key, caps: ['pres', 'each'] }));
       for (const s of scopes.keys()) ws.send(JSON.stringify({ t: 'sub', scope: s }));
       if (room) ws.send(JSON.stringify({ t: 'join', room: room.name, peer: room.peer, presence: room.presence }));
       while (outq.length) ws.send(JSON.stringify(outq.shift()));
@@ -111,12 +113,14 @@ function startServer(base) {
       } else if (m.t === 'chg') { setLocal(m.p, m.d); notify(m.scope); }
       else if (m.t === 'ack') { const w = waits.get(m.rid); if (w) { waits.delete(m.rid); if (m.error) w.reject(errCode({ message: m.error })); else w.resolve(m); } }
       else if (m.t === 'peers' && room && m.room === room.name) room.peersIn(m.peers);
+      else if (m.t === 'pres' && room && m.room === room.name) room.presIn(m);
       else if (m.t === 'evt' && room && m.room === room.name) room.evtIn(m);
     };
     ws.onclose = () => { open = false; for (const s of scopes.values()) s.parts = null; if (room) room.conn(false); setTimeout(connect, backoff); backoff = Math.min(8000, backoff * 2); };
   }
   connect();
-  // a small sign of life now and then, so quiet connections aren't closed along the way
+  // a small sign of life now and then, so quiet connections aren't closed along the way (on Cloudflare the answer is
+  // automatic and free: keep this exact text)
   setInterval(() => { if (open) ws.send('{"t":"ping"}'); }, 25000);
 
   function ensureScope(scope) {
@@ -151,7 +155,23 @@ function startServer(base) {
     // only documents in a scope this page follows are kept here (uploaded music pieces just go to the server)
     const scope = scopeOf(path);
     if (scope) { if (op === 'delete') setLocal(path, null); else if (op === 'update') setLocal(path, { ...(docs.get(path) || {}), ...clone(data) }); else setLocal(path, clone(data)); notify(scope); }
-    return request({ t: 'write', ops: [{ op, path, data: op === 'delete' ? undefined : clone(data) }] }).then(() => {});
+    return new Promise((resolve, reject) => {
+      wq.push({ op: { op, path, data: op === 'delete' ? undefined : clone(data) }, resolve, reject });
+      if (!wqT) wqT = setTimeout(flushWrites, 8);
+    });
+  }
+  // a moment's changes (moving six tokens, a chat line and the oldest one going) as one message: the server checks each
+  // on its own, so one refused change doesn't take the others with it
+  let wq = [], wqT = 0;
+  function flushWrites() {
+    wqT = 0;
+    while (wq.length) {
+      const part = wq.splice(0, 100);
+      request({ t: 'write', each: true, ops: part.map(x => x.op) }).then(r => {
+        const errs = (r && r.errs) || {};
+        part.forEach((x, i) => { if (errs[i]) x.reject(errCode({ message: errs[i] })); else x.resolve(); });
+      }, e => part.forEach(x => x.reject(e)));
+    }
   }
   function docRef(path) {
     return {
@@ -181,19 +201,36 @@ function startServer(base) {
     async join(rawName) {
       const name = String(rawName).replace(/[^\w-]/g, '').slice(0, 60) || 'lobby', peer = 'p' + rand(12);
       const handlers = new Map(), peerFns = new Set(), connFns = new Set();
-      let peers = [], connected = open, sendT = 0, lastSend = 0;
+      let peers = [], connected = open, sendT = 0, lastSend = 0, held = false, quick = false;
+      const others = () => peers.some(p => !p.sameTab);
       const R = room = {
         name, peer, presence: {},
         conn(v) { connected = v; connFns.forEach(f => f({ connected: v })); },
-        peersIn(list) { peers = list.map(x => peerShape(x, uid, peer)); if (!peers.some(p => p.sameTab)) peers.push(peerShape({ peer, by: uid, presence: R.presence }, uid, peer)); peerFns.forEach(f => { try { f({ peers }); } catch (e) { console.error(e); } }); },
+        peersIn(list) {
+          peers = list.map(x => peerShape(x, uid, peer)); if (!peers.some(p => p.sameTab)) peers.push(peerShape({ peer, by: uid, presence: R.presence }, uid, peer));
+          if (held && others()) { held = false; clearTimeout(sendT); push(); }
+          tellPeers();
+        },
+        // one player's presence changed (from a Homebase that sends just that)
+        presIn(m) {
+          const i = peers.findIndex(p => p.peer === m.peer); if (i < 0) return;
+          peers = peers.slice(); peers[i] = { ...peers[i], presence: m.presence || {} };
+          tellPeers();
+        },
         evtIn(m) { const msg = { topic: m.topic, data: m.data, peer: m.peer, by: m.by, isMe: m.by === uid, sameTab: m.peer === peer, kind: 'viewer', guest: false }; (handlers.get(m.topic) || []).forEach(f => { try { f(msg); } catch (e) { console.error(e); } }); }
       };
+      const tellPeers = () => peerFns.forEach(f => { try { f({ peers }); } catch (e) { console.error(e); } });
       sendRaw({ t: 'join', room: name, peer, presence: {} });
-      const push = () => { lastSend = Date.now(); sendRaw({ t: 'presence', room: name, peer, presence: R.presence }); };
+      const push = () => { quick = false; if (!others()) { held = true; return; } lastSend = Date.now(); sendRaw({ t: 'presence', room: name, peer, presence: R.presence }); };
       return {
         async emit(topic, data) { await request({ t: 'emit', room: name, peer, topic, data: clone(data ?? null) }); },
         on(topic, fn) { if (!handlers.has(topic)) handlers.set(topic, new Set()); handlers.get(topic).add(fn); return () => handlers.get(topic).delete(fn); },
-        async presence(patch) { for (const [k, v] of Object.entries(patch || {})) { if (v === null) delete R.presence[k]; else R.presence[k] = clone(v); } clearTimeout(sendT); sendT = setTimeout(push, Math.max(0, 50 - (Date.now() - lastSend))); },
+        async presence(patch) {
+          const keys = Object.keys(patch || {});
+          for (const k of keys) { const v = patch[k]; if (v === null) delete R.presence[k]; else R.presence[k] = clone(v); }
+          if (keys.some(k => k !== 'x' && k !== 'y')) quick = true;
+          clearTimeout(sendT); sendT = setTimeout(push, Math.max(0, (quick ? 80 : 125) - (Date.now() - lastSend)));
+        },
         peers: () => peers,
         onPeers(fn) { peerFns.add(fn); return () => peerFns.delete(fn); },
         onConnection(fn) { connFns.add(fn); return () => connFns.delete(fn); },

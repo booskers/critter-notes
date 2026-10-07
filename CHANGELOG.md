@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.2 (2026-10-07)
+- Critter VTT's Homebase has a new address, live.crittervtt.com, and Notes now connects there (the old address keeps working for older versions).
+- The connection to the Homebase sends several changes made at once together, and each one succeeds or fails on its own.
+
 ## 1.5.1 (2026-10-07)
 - Home's top is never out of reach any more: in a window shorter than Home, its top part (the next session and the to-dos) slid up out of sight and couldn't be scrolled to.
 
