@@ -16,7 +16,7 @@ npm run icons      # remakes the icons from logo-src/critter-logo.svg (Electron 
 
 `build.mjs` puts the page in `www/`: the files in `src/`, the Homebase client and the SRD compendium. Those last two come from
 Critter and are kept in `shared/`, so this project builds on its own. When Critter's sources sit next to this folder
-(`../critboard-desktop/app`, `../critboard/srd`), each build refreshes `shared/` from them.
+(`../crittervtt-desktop/app`, `../crittervtt/srd`), each build refreshes `shared/` from them.
 `HOMEBASE_SERVER=<url>` builds with another Homebase, `HOMEBASE_SERVER=none` with none (for testing).
 
 The page also runs in a browser (it keeps campaigns in IndexedDB there).
@@ -96,7 +96,7 @@ had to change; Notes writes what Critter already reads (`src/table.js`):
 
 ## Critter Sounds
 
-`critboard-desktop/music/src/notes-bridge.js` (in the Critter Sounds repository) publishes `lobbies/<code>/soundcat/main`
+`crittervtt-desktop/music/src/notes-bridge.js` (in the Critter Sounds repository) publishes `lobbies/<code>/soundcat/main`
 and plays cues from `lobbies/<code>/cues/<id>` `{ op, kind, ref, name, ts, sig }`, where `sig` is SHA-256 of
 `<music key>|<id>|<op>|<kind>|<ref>`. Cues without the key are ignored.
 

@@ -96,7 +96,7 @@ const VIEWS = (() => {
       const T = TABLE.T, code = h('input', { type: 'text', class: 'code', value: c.table || '', placeholder: 'Lobby code or music code', 'aria-label': 'Critter VTT table code', disabled: !!(c.share && c.share.on) });
       const tableRows = [row('Critter VTT table', T.state === 'on' ? `Linked to ${T.code} · ${SRD.SYSTEMS[TABLE.sys()] || TABLE.sys()} · ${plural(TABLE.players().length, 'player')}` : T.why || 'The lobby code links Notes to the table. The music code (from Critter VTT\'s Music window) also lets Notes cue Critter Sounds.',
         code, btn(null, T.state === 'on' && code.value === c.table ? 'Linked' : 'Link', async () => { c.table = code.value.trim(); await saveCamp(); if (c.table) await TABLE.connect(c.table); else TABLE.disconnect(); renderMain(); }, 'tiny' + (T.state === 'on' ? '' : ' primary')))];
-      if (window.CRITBOARD_DESKTOP) tableRows.push(row('Homebase', window.CRITBOARD_DESKTOP.server || 'Not chosen', btn(null, 'Change…', () => window.CRITBOARD_DESKTOP.changeHomebase(), 'tiny ghost')));
+      if (window.CRITTER_DESKTOP) tableRows.push(row('Homebase', window.CRITTER_DESKTOP.server || 'Not chosen', btn(null, 'Change…', () => window.CRITTER_DESKTOP.changeHomebase(), 'tiny ghost')));
       wrap.append(sec('The table', ...tableRows));
       const sh = c.share || {}, shareRows = [];
       if (SYNC.isPlayer()) shareRows.push(row(`You're ${sh.pname} at table ${sh.code}`, 'What the GM shares with you shows here, read only. Your notes are your notes in Critter VTT.', btn(null, 'Leave the campaign', () => leave(), 'tiny ghost bad')));
@@ -306,7 +306,7 @@ const VIEWS = (() => {
         h('p', { class: 'hint', text: 'Enter the lobby code to send notes, handouts, NPCs, items and maps to the table, and to take its Library, scenes and chat into your notes. With the music code from Critter VTT\'s Music window instead, Notes can also cue Critter Sounds.' }),
         h('div', { class: 'row' }, inp, btn(null, T.state === 'connecting' ? 'Linking…' : 'Link', go2, 'primary')),
         T.why ? h('p', { class: 'hint bad', text: T.why }) : null,
-        window.CRITBOARD_DESKTOP ? h('p', { class: 'hint', text: `Homebase: ${window.CRITBOARD_DESKTOP.mode === 'offline' ? 'offline' : window.CRITBOARD_DESKTOP.server || 'not chosen'}` }) : null));
+        window.CRITTER_DESKTOP ? h('p', { class: 'hint', text: `Homebase: ${window.CRITTER_DESKTOP.mode === 'offline' ? 'offline' : window.CRITTER_DESKTOP.server || 'not chosen'}` }) : null));
       return;
     }
     const pl = TABLE.players();
@@ -626,7 +626,7 @@ ${critterText(d, true)}`) },
       { label: 'Import Markdown files…', icon: 'upload', disabled: !A.camp, fn: () => PLAN.importMd(false) }, { label: 'Import a folder…', icon: 'folder', disabled: !A.camp, fn: () => PLAN.importMd(true) },
       { label: 'Back up this campaign…', icon: 'download', disabled: !A.camp, fn: () => backup() }, { label: 'Restore a backup…', icon: 'upload', fn: () => restore() }, '-',
       { label: 'Appearance…', icon: 'moon', fn: () => appearance() },
-      { label: 'Homebase…', icon: 'globe', fn: () => window.CRITBOARD_DESKTOP && window.CRITBOARD_DESKTOP.changeHomebase() }, { label: 'Take the tour', icon: 'compass', fn: () => TOUR.ask() }, { label: 'Keyboard shortcuts', icon: 'help', fn: () => shortcuts() }, { label: 'About Critter Notes', icon: 'note', fn: () => about() },
+      { label: 'Homebase…', icon: 'globe', fn: () => window.CRITTER_DESKTOP && window.CRITTER_DESKTOP.changeHomebase() }, { label: 'Take the tour', icon: 'compass', fn: () => TOUR.ask() }, { label: 'Keyboard shortcuts', icon: 'help', fn: () => shortcuts() }, { label: 'About Critter Notes', icon: 'note', fn: () => about() },
       ...(window.desk && window.desk.updates ? ['-', { label: 'Check for updates…', icon: 'refresh', fn: () => window.desk.updates.check() }, { label: 'Critter Notes on GitHub', icon: 'github', fn: () => window.desk.updates.github() }] : [])], at);
   }
   async function vaultDialog() {

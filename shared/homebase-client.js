@@ -53,7 +53,8 @@ ${BUILT_IN ? `<label><input type="radio" name="hbm" value="homebase"><span><b>Ho
   };
   if (document.body) show(); else addEventListener('DOMContentLoaded', show);
 }
-window.CRITBOARD_DESKTOP = { mode: MODE, server: MODE === 'homebase' ? BUILT_IN : SERVER, changeHomebase: () => setupScreen() };
+// (also as window.CRITBOARD_DESKTOP, its name before the rename, for anything built before it)
+window.CRITBOARD_DESKTOP = window.CRITTER_DESKTOP = { mode: MODE, server: MODE === 'homebase' ? BUILT_IN : SERVER, changeHomebase: () => setupScreen() };
 if (!MODE) setupScreen();
 if (MODE === 'homebase') startServer(BUILT_IN);
 else if (MODE === 'server' && SERVER) startServer(SERVER);

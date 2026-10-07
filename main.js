@@ -163,7 +163,7 @@ function appMenu() {
     { label: 'Restore a backup…', click: send('restore') },
     { type: 'separator' },
     { label: 'Appearance…', click: send('appearance') },
-    { label: 'Homebase…', click: () => wc && wc.executeJavaScript('window.CRITBOARD_DESKTOP && window.CRITBOARD_DESKTOP.changeHomebase()') },
+    { label: 'Homebase…', click: () => wc && wc.executeJavaScript('window.CRITTER_DESKTOP && window.CRITTER_DESKTOP.changeHomebase()') },
     { label: 'Undo', accelerator: 'CmdOrCtrl+Z', registerAccelerator: false, click: send('undo') },
     { label: 'Redo', accelerator: 'CmdOrCtrl+Y', registerAccelerator: false, click: send('redo') },
     { label: 'Undo history…', click: send('history') },

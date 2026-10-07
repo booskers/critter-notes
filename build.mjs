@@ -1,10 +1,10 @@
 // Puts Critter Notes' page into ./www: the notebook, Homebase (the same client the Critter app uses) and the SRD
 // compendium, so items, monsters and spells can be looked up offline while planning.
 // What comes from Critter is kept in ./shared, so this project builds on its own:
-//   shared/homebase-client.js    critboard-desktop/app/shim/homebase-client.js
-//   shared/homebase.config.json  critboard-desktop/app/homebase.config.json, the built-in Homebase address
-//   shared/srd/*.json            critboard/srd, the SRD compendium
-// When Critter's sources sit next to this folder (../critboard-desktop/app, ../critboard/srd), each build refreshes ./shared.
+//   shared/homebase-client.js    crittervtt-desktop/app/shim/homebase-client.js
+//   shared/homebase.config.json  crittervtt-desktop/app/homebase.config.json, the built-in Homebase address
+//   shared/srd/*.json            crittervtt/srd, the SRD compendium
+// When Critter's sources sit next to this folder (../crittervtt-desktop/app, ../crittervtt/srd), each build refreshes ./shared.
 //   HOMEBASE_SERVER=<url>          use another built-in Homebase for this build ("none" for none: testing)
 import { readFile, writeFile, mkdir, rm, readdir, copyFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -17,7 +17,7 @@ const out = join(here, 'www'), shared = join(here, 'shared');
 await mkdir(out, { recursive: true }); await mkdir(join(shared, 'srd'), { recursive: true });
 for (const f of await readdir(out)) await rm(join(out, f), { recursive: true, force: true });
 
-const app = join(here, '..', 'critboard-desktop', 'app'), srdSrc = join(here, '..', 'critboard', 'srd');
+const app = join(here, '..', 'crittervtt-desktop', 'app'), srdSrc = join(here, '..', 'crittervtt', 'srd');
 let from = 'shared/';
 if (existsSync(join(app, 'shim', 'homebase-client.js'))) {
   await copyFile(join(app, 'shim', 'homebase-client.js'), join(shared, 'homebase-client.js'));
