@@ -484,7 +484,7 @@ function renderCtx() {
     link: li => {
       if (li.kind === 'doc') {
         const id = resolve(li.title), label = li.label || li.title + (li.heading ? ' › ' + li.heading : '');
-        if (!id && (SYNC.isPlayer() || isRO(D(A.view.id) || {}))) return esc(label);
+        if (!id && (SYNC.isPlayer() || isRO(D(A.view.id) || {}))) return `<a class="wl unknown" href="#" data-unknown="${esc(li.title)}">${esc(label)}</a>`;
         if (!id) return `<a class="wl new" href="#" data-new="${esc(li.title)}" title="Not written yet. Click to start it.">${esc(label)}</a>`;
         const x = D(id), w = isRO(x); return `<a class="wl${w ? ' world' : ''}" href="#" data-doc="${id}" data-h="${esc(li.heading)}" style="--c:${typeColor(x)}"${w ? ` title="From ${esc(A.wname)}"` : ''}>${icon(TYPES[x.type].icon)}${esc(label)}</a>`;
       }
@@ -539,24 +539,41 @@ function bubble(anchor, html) {
 let hovT = 0, hovFor = null;
 function hideHover() { clearTimeout(hovT); const c = $('#hov'); if (c) { c.hidden = true; c.classList.remove('sticky'); } hovFor = null; }
 document.addEventListener('mouseover', e => {
-  const a = e.target.closest('.wl[data-doc],.tl[data-ent],.tl[data-srd]'), card = $('#hov');
+  const a = e.target.closest('.wl[data-doc],.wl[data-unknown],.wl[data-new],.tl[data-ent],.tl[data-srd]'), card = $('#hov');
   if (e.target.closest('#hov')) { clearTimeout(hovT); return; }
   if (card.classList.contains('sticky')) return;
   if (!a) { if (hovFor) { clearTimeout(hovT); hovT = setTimeout(hideHover, 250); } return; }
   if (a === hovFor) return;
-  clearTimeout(hovT); hovT = setTimeout(() => peek(a), 380);
+  clearTimeout(hovT); hovT = setTimeout(() => peek(a), 900);
 });
 async function peek(a, sticky) {
   const card = $('#hov'); clearTimeout(hovT);
   if (!sticky && card.classList.contains('sticky')) return;
   hovFor = a; card.replaceChildren(); card.classList.toggle('sticky', !!sticky);
+  card.classList.remove('rich', 'unknown');
   if (a.dataset.doc) {
+    // a little card of the place, person or thing: its banner and portrait, what it is, the facts that matter, how it begins
     const d = D(a.dataset.doc); if (!d) return;
-    const flds = (FIELDS[d.type] || []).filter(([k]) => d.fields && d.fields[k] !== undefined && d.fields[k] !== '' && k !== 'secret').slice(0, 4);
-    card.append(h('div', { class: 'hk', style: `--c:${typeColor(d)}`, html: icon(TYPES[d.type].icon) + `<span>${TYPES[d.type].name}</span>` }), h('b', { class: 'ht', text: d.title }));
+    const player = SYNC.isPlayer();
+    const flds = (FIELDS[d.type] || []).filter(([k, , , , show]) => d.fields && d.fields[k] !== undefined && d.fields[k] !== '' && k !== 'secret' && (!show || show(d))).slice(0, 4);
+    const ban = d.banner || d.img;
+    card.classList.add('rich');
+    if (ban) card.append(h('div', { class: 'hban' + (d.banner ? '' : ' frompic') }, h('img', { 'data-cimg': ban, alt: '' })));
+    card.append(h('div', { class: 'hhead' + (ban ? '' : ' plain') },
+      d.img ? h('img', { class: 'hav', 'data-cimg': d.img, alt: '' }) : h('span', { class: 'hav none', style: `--c:${typeColor(d)}`, html: icon(TYPES[d.type].icon) }),
+      h('div', { class: 'hname' }, h('div', { class: 'hk', style: `--c:${typeColor(d)}`, html: icon(TYPES[d.type].icon) + `<span>${TYPES[d.type].name}</span>` }), h('b', { class: 'ht', text: d.title }))));
     if (flds.length) card.append(h('div', { class: 'hf' }, ...flds.map(([k, l]) => h('span', {}, h('i', { text: l + ' ' }), String(d.fields[k])))));
-    if (d.img) { const im = h('img', { class: 'hpic', 'data-cimg': d.img }); card.append(im); hydrate(card); }
-    const txt = MD.plain(d.body).replace(/\s+/g, ' ').trim(); card.append(h('p', { text: txt ? txt.slice(0, 280) + (txt.length > 280 ? '…' : '') : 'Nothing written yet.' }));
+    const src = player ? MD.forPlayers(d.body || '') : String(d.body || '').replace(/^> \[!secret\][^\n]*(\n>[^\n]*)*/gm, '');
+    const txt = MD.plain(src.split(/\r?\n/).filter(l => !/^\s*#{1,6}\s/.test(l)).join('\n')).replace(/\s+/g, ' ').trim();
+    card.append(h('p', { text: txt ? txt.slice(0, 240) + (txt.length > 240 ? '…' : '') : 'Nothing written yet.' }));
+    hydrate(card);
+  } else if (a.dataset.unknown) {
+    // a link the reader can't open: the GM hasn't shared it (or it isn't written)
+    card.classList.add('unknown');
+    card.append(h('div', { class: 'hk', html: icon('eye-off') + '<span>Not something you know</span>' }), h('b', { class: 'ht', text: a.dataset.unknown }),
+      h('p', { text: 'This isn\'t information you have yet. Maybe your character should ask around about it?' }));
+  } else if (a.dataset.new) {
+    card.append(h('div', { class: 'hk', html: icon('plus') + '<span>Not written yet</span>' }), h('b', { class: 'ht', text: a.dataset.new }), h('p', { class: 'hint', text: 'Click the link to start this document.' }));
   } else if (a.dataset.ent) {
     const e = TABLE.T.ents.get(a.dataset.ent);
     if (!e) card.append(h('b', { class: 'ht', text: 'Not at the table right now' }), h('p', { class: 'hint', text: TABLE.on() ? 'This entry isn\'t in the linked table\'s Library any more.' : 'Link this campaign to its table to see it.' }));

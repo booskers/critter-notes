@@ -936,3 +936,22 @@ body.wfull #main.flow .docscroll>.banner{height:386px}
 #main.flow:has(.docscroll>.banner):not(.scrolled) .docbar{text-shadow:0 1px 2px rgb(0 0 0/.6)}
 :root[data-theme=light] #main.flow:has(.docscroll>.banner):not(.scrolled) .docbar{text-shadow:0 1px 1px rgb(255 255 255/.8)}
 #main.flow .hasbanner .dhero{margin-top:-200px}
+/* the hover card of a link: banner (or the picture, softened), the portrait over its edge, kind and name, the facts, how it begins */
+.hov.rich{padding:0;overflow:hidden;width:340px}
+.hov.rich>*:not(.hban){margin-left:14px;margin-right:14px}
+.hov.rich>p{margin-bottom:13px}
+.hban{height:104px;margin:0;position:relative;-webkit-mask-image:linear-gradient(#000 45%,transparent);mask-image:linear-gradient(#000 45%,transparent)}
+.hban img{width:100%;height:100%;object-fit:cover;display:block}
+.hban.frompic img{filter:blur(14px) saturate(1.4);transform:scale(1.25);opacity:.75}
+.hhead{display:flex;align-items:flex-end;gap:12px;margin-top:-46px;position:relative}
+.hhead.plain{margin-top:12px;align-items:center}
+.hav{flex:none;width:64px;height:64px;border-radius:14px;object-fit:cover;box-shadow:0 10px 24px -10px rgb(0 0 0/.7),0 0 0 3px var(--surface-3,var(--panel2))}
+.hav.none{display:grid;place-items:center;background:color-mix(in srgb,var(--c) 18%,var(--surface-3,var(--panel2)));color:var(--c);box-shadow:none;width:44px;height:44px;border-radius:12px}
+.hav.none .ic{width:22px;height:22px}
+.hname{min-width:0;padding-bottom:2px}
+.hname .ht{margin:2px 0 0;overflow-wrap:anywhere}
+.hov.rich .hf{margin-top:8px}
+.hov.unknown{border:0}
+.hov.unknown .hk{color:var(--faint)}
+/* a link the reader can't open: there, but quiet */
+.wl.unknown{color:var(--ink2);border-bottom:1px dotted var(--faint);cursor:help}
