@@ -1000,6 +1000,7 @@ async function openCampaign(id) {
 async function createCampaign(o) {
   const meta = { id: rid('c'), name: String(o.name || 'New campaign').slice(0, 80), sys: o.sys || 'generic', color: o.color || '', table: o.table || '', created: Date.now(), updated: Date.now() };
   await STORE.saveCampaign(meta); A.camps.unshift(meta);
+  if (WEB.on) WEB.keep(true);
   await openCampaign(meta.id);
   return meta;
 }

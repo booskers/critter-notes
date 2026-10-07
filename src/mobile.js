@@ -205,6 +205,7 @@ const MOBILE = (() => {
   /* ---------- whenever a page is drawn ---------- */
   function onRender() {
     classes();
+    document.body.classList.toggle('nocamp', !A.camp);
     // a phone shows one thing at a time: a new page closes the side panel's sheet
     if (isPhone() && A.prefs.right && !onRender.keepRight) { A.prefs.right = false; renderRight(); }
     onRender.keepRight = false;

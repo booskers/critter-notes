@@ -3,6 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- the web version: installable (home screen, offline), with the dark bar colour while it starts -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#16171b">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Notes">
+<meta name="description" content="Critter Notes: a notebook for game masters, linked to your Critter VTT table.">
 <title>Critter Notes</title>
 <link rel="icon" href="icon.svg">
 <link rel="stylesheet" href="style.css">
@@ -70,6 +79,7 @@
 <script src="views.js"></script>
 <script src="drawer.js"></script>
 <script src="mobile.js"></script>
+<script src="webapp.js"></script>
 <script src="tour.js"></script>
 <script src="app.js"></script>
 </body>

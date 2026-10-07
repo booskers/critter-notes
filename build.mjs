@@ -40,4 +40,16 @@ await writeFile(join(out, 'config.js'), `window.HOMEBASE_CONFIG = ${JSON.stringi
 for (const f of await readdir(join(here, 'src'))) await copyFile(join(here, 'src', f), join(out, f));
 await mkdir(join(out, 'srd'), { recursive: true });
 let n = 0; for (const f of await readdir(join(shared, 'srd'))) if (f.endsWith('.json')) { await copyFile(join(shared, 'srd', f), join(out, 'srd', f)); n++; }
+// the web version (notes.crittervtt.com): a service worker that keeps every file of this build for offline use (its cache
+// is named after a fingerprint of the files, so each new build replaces it), and the web server's security headers
+{
+  const { createHash } = await import('node:crypto');
+  const list = [], hash = createHash('sha1');
+  const walk = async (dir, rel = '') => { for (const e of await readdir(join(dir, rel), { withFileTypes: true })) { const r = rel ? rel + '/' + e.name : e.name; if (e.isDirectory()) await walk(dir, r); else if (!/^(sw\.js|_headers)$/.test(r)) { list.push(r); hash.update(r).update(await readFile(join(dir, r))); } } };
+  await walk(out);
+  const sw = await readFile(join(here, 'src', 'sw.template.js'), 'utf8');
+  await writeFile(join(out, 'sw.js'), sw.replaceAll('__VERSION__', version + '-' + hash.digest('hex').slice(0, 10)).replaceAll('__FILES__', JSON.stringify(['./', ...list.filter(f => f !== 'sw.template.js')])));
+  await rm(join(out, 'sw.template.js'), { force: true });
+  await copyFile(join(here, 'src', '_headers'), join(out, '_headers'));
+}
 console.log(`www ready: Homebase ${cfg.server ? 'at ' + cfg.server : 'not configured (the app will ask)'}, ${n} SRD files, shared code from ${from}`);

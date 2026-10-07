@@ -58,7 +58,8 @@ const STORE = (() => {
       const k = cid + '/' + file; if (urls.has(k)) return urls.get(k);
       const b = await tx('images', 'readonly', s => req(s.get(k))); const u = b ? URL.createObjectURL(b) : ''; urls.set(k, u); return u;
     },
-    exportMd: async () => null,
+    // in a browser, Markdown goes out as one .zip (webapp.js)
+    exportMd: (cid, name, files) => WEB.exportMdZip(cid, name, files),
     async saveFile(name, text) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name; document.body.append(a); a.click(); a.remove(); return name; },
     openFile: () => new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.json,application/json'; i.onchange = () => { const f = i.files[0]; if (!f) return res(null); f.text().then(res, () => res(null)); }; i.click(); })
   };

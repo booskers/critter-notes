@@ -16,13 +16,13 @@ const VIEWS = (() => {
       window.APP_VERSION ? h('span', { class: 'appver', text: 'Version ' + window.APP_VERSION }) : null,
       h('p', { class: 'lead', text: 'Plan sessions, write your world, draw maps, boards and mind maps, and bring it all to your Critter VTT table.' }),
       h('div', { class: 'wchoices' },
-        choice('lore', 'Start my own campaign', 'You\'re the GM. It\'s kept on this computer, and you can share it with co-writers and players later.',
+        choice('lore', 'Start my own campaign', 'You\'re the GM. It\'s kept ' + (WEB.on ? 'in this browser' : 'on this computer') + ', and you can share it with co-writers and players later.',
           h('div', { class: 'row center wrap' }, btn('plus', 'Start a campaign', () => newCampaign(), 'primary'), btn(null, 'Look at a sample first', () => sample(), 'ghost'))),
         choice('users', 'Write with someone', 'You help a GM write their campaign: you see and change everything. Ask them for the invite code (Settings › Sharing).',
           h('div', { class: 'row' }, invite, btn(null, 'Join', async () => { try { await SYNC.joinWriter(invite.value); } catch (e) { toast(errText(e)); } }, 'primary'))),
         choice('character', 'Join as a player', 'You see what your GM shares with you, and keep your own notes. They\'re your notes in Critter VTT too.',
           h('div', { class: 'row' }, lobby, btn(null, 'Next', () => pickPlayer(lobby.value), 'primary')))),
-      h('div', { class: 'row center wrap' }, btn('compass', 'Take the tour', () => TOUR.ask(), 'ghost tiny'), btn('upload', 'Restore a backup', () => restore(), 'ghost tiny')),
+      h('div', { class: 'row center wrap' }, btn('compass', 'Take the tour', () => TOUR.ask(), 'ghost tiny'), btn('upload', 'Restore a backup', () => restore(), 'ghost tiny'), WEB.on ? h('a', { class: 'btn ghost tiny', href: WEB.DESKTOP, rel: 'noopener' }, h('span', { class: 'bi', html: icon('download') }), h('span', { text: 'Get the Windows app' })) : null),
       h('p', { class: 'hint', text: STORE.kind === 'files' ? `Campaigns are kept as plain files in ${where.root}.` : 'Campaigns are kept in this browser.' })));
   }
   async function pickPlayer(code) {
@@ -112,7 +112,8 @@ const VIEWS = (() => {
     }
     wrap.append(sec('Files',
       c && !SYNC.isPlayer() ? row('Back up', 'One file with everything in this campaign, pictures too.', btn('download', 'Back up…', () => backup(), 'tiny'), btn('upload', 'Restore…', () => restore(), 'tiny ghost')) : null,
-      c && !SYNC.isPlayer() ? row('Markdown', 'Bring notes in from Obsidian or another app, or take a copy out.', btn('upload', 'Import files…', () => PLAN.importMd(false), 'tiny'), btn('folder', 'Import a folder…', () => PLAN.importMd(true), 'tiny ghost'), STORE.kind === 'files' ? btn('download', 'Export…', () => exportMd(), 'tiny ghost') : null) : null,
+      c && !SYNC.isPlayer() ? row('Markdown', 'Bring notes in from Obsidian or another app, or take a copy out.', btn('upload', 'Import files…', () => PLAN.importMd(false), 'tiny'), btn('folder', 'Import a folder…', () => PLAN.importMd(true), 'tiny ghost'), btn('download', 'Export…', () => exportMd(), 'tiny ghost')) : null,
+      ...WEB.settingsRows(row),
       STORE.kind === 'files' ? row('Where campaigns are kept', '', btn('folder', 'Open the folder', () => STORE.openFolder(c ? c.id : undefined), 'tiny'), btn(null, 'Choose another…', () => vaultDialog(), 'tiny ghost')) : null));
     // updates come from the GitHub releases (only in the desktop app)
     const U = window.desk && window.desk.updates;
@@ -208,6 +209,8 @@ const VIEWS = (() => {
     if (missing.size) left.append(card('Mentioned, not written yet', h('div', { class: 'chips' }, ...[...missing].sort((a, b) => b[1].size - a[1].size).slice(0, 24).map(([t, set]) => h('button', { type: 'button', class: 'mchip', title: `Mentioned in ${plural(set.size, 'document')}. Click to write it.`, onclick: e => createFromLink(t, e.currentTarget) }, h('span', { text: t }), set.size > 1 ? h('i', { text: set.size, 'aria-label': `(in ${set.size})` }) : null)))));
     // recent
     const recent = h('div', { class: 'list' }); all.sort((a, b) => b.updated - a.updated).slice(0, 8).forEach(d => recent.append(docRow(d, ago(d.updated))));
+    // a reminder to back up (in a browser, when changes haven't been)
+    const rem = WEB.reminder(); if (rem) left.prepend(rem);
     // the open to-dos from the notes drawer, to tick off right here
     const todos = DRAWER.todosCard(); if (todos) right.append(todos);
     right.append(card('Recently changed', recent.children.length ? recent : h('p', { class: 'hint', text: 'Nothing yet.' })));
@@ -555,7 +558,7 @@ ${critterText(d, true)}`) },
       h('div', { class: 'sep' }),
       h('div', { class: 'row wrap' },
         STORE.kind === 'files' ? btn('folder', 'Open its folder', () => STORE.openFolder(c.id)) : null,
-        STORE.kind === 'files' ? btn('download', 'Export as Markdown', () => exportMd()) : null,
+        btn('download', 'Export as Markdown', () => exportMd()),
         btn('download', 'Back up', () => backup()), btn('upload', 'Restore a backup', () => restore())),
       h('p', { class: 'hint', text: STORE.kind === 'files' ? `Kept in ${where.root}.` : 'Kept in this browser. Back it up now and then.' }),
       h('div', { class: 'sep' }),
@@ -606,12 +609,19 @@ ${critterText(d, true)}`) },
   async function restore() {
     const text = await STORE.openFile().catch(() => null); if (!text) return;
     let j; try { j = JSON.parse(text); } catch { toast('That isn\'t a Critter Notes backup.'); return; }
-    if (!j || j.app !== 'critter-notes' || !j.camp || !Array.isArray(j.docs)) { toast('That isn\'t a Critter Notes backup.'); return; }
+    // "Download everything" files hold every campaign: each comes back as its own
+    if (j && j.app === 'critter-notes' && Array.isArray(j.all)) { let n = 0; for (const one of j.all) if (await restoreOne(one)) n++; toast(`Restored ${plural(n, 'campaign')}.`); if (A.camps[0]) await openCampaign(A.camps[0].id); return; }
+    if (!(await restoreOne(j))) { toast('That isn\'t a Critter Notes backup.'); return; }
+    await openCampaign(A.camps[0].id); toast(`Restored ${A.camps[0].name}: ${plural(j.docs.length, 'document')}.`);
+  }
+  async function restoreOne(j) {
+    if (!j || !j.camp || !Array.isArray(j.docs)) return false;
+    if (j.app && j.app !== 'critter-notes') return false;
     const meta = { ...j.camp, id: rid('c'), name: A.camps.some(c => c.name === j.camp.name) ? j.camp.name + ' (restored)' : j.camp.name, updated: Date.now() };
     await STORE.saveCampaign(meta);
     for (const [f, data] of Object.entries(j.images || {})) { try { await STORE.putImage(meta.id, await (await fetch(data)).blob(), f); } catch {} }
     for (const d of j.docs) if (d && d.id) await STORE.saveDoc(meta.id, d);
-    A.camps.unshift(meta); await openCampaign(meta.id); toast(`Restored ${meta.name}: ${plural(j.docs.length, 'document')}.`);
+    A.camps.unshift(meta); return true;
   }
 
   /* ============================== menus and help ============================== */
