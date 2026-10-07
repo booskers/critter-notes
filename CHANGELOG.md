@@ -1,6 +1,6 @@
 # Changelog
 
-## Next (not released yet)
+## 1.6.0 (2026-10-07)
 - Your devices: link a campaign to your phone, tablet or a browser (notes.crittervtt.com), and it stays in step both ways: what you add, change, trash or restore on one, the others do too. On the same Wi-Fi the phone finds the computer by itself; anywhere else it types a 6-letter code. Both screens show the same four digits and the computer approves it.
 - Nothing is stored on the Homebase: every device keeps the whole campaign, and devices talk to each other directly (inside your home network when they share one). Where a network won't allow that, the Homebase passes their messages along, end-to-end encrypted with a key only your devices have. Changes travel while both devices are open; one that was closed catches up the next time both are.
 - Changed on two devices while they were apart: the newer version wins on every device, and the other waits in the trash as a "conflict copy". A change always wins over a deletion it never saw, so no work is lost to it.

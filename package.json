@@ -1,7 +1,7 @@
 {
   "name": "critter-notes",
   "productName": "Critter Notes",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "description": "Critter Notes: plan sessions, write your world, draw maps and mind maps, and send it all to your Critter table.",
   "main": "main.js",
   "private": true,
