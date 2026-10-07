@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.5.1 (2026-10-07)
+- Home's top is never out of reach any more: in a window shorter than Home, its top part (the next session and the to-dos) slid up out of sight and couldn't be scrolled to.
+
 ## 1.5.0 (2026-10-07)
 - Critter Setup, a new installer in the Critter look; updates now download only what changed.
 - The notes drawer: a tab at the bottom of the window (Ctrl+J) slides up into a canvas of to-do lists, notes and links. Drag it taller or shorter, right-click for something new, and drag a block onto a document to put it there. Open to-dos show on Home; Settings can turn it off.
