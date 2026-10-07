@@ -115,7 +115,7 @@ const PLAN = (() => {
 
   /* ---------- today in the world, as a flip clock ---------- */
   // drag it right or left to move time; while dragging, the wheel changes the speed (days, weeks, months, years)
-  function flipClock(now, set) {
+  function flipClock(now, set, moving) {
     const c = cal(); let shown = now ? { ...now } : null;
     const card = (cls, label) => h('div', { class: 'flip ' + cls }, h('span', { class: 'fv' }), h('small', { text: label }));
     const D1 = card('fd', 'day'), M1 = card('fm', 'month'), Y1 = card('fy', 'year');
@@ -134,19 +134,19 @@ const PLAN = (() => {
       e.preventDefault(); box.setPointerCapture(e.pointerId); box.classList.add('dragging');
       drag = { x0: e.clientX, base: { ...shown }, unit: 0 }; hint.textContent = 'by ' + UNITS[0] + ' · the wheel changes the speed';
     });
-    box.addEventListener('pointermove', e => { if (!drag) return; const n = Math.trunc((e.clientX - drag.x0) / 14); shown = step(drag.base, drag.unit, n); paint(); });
+    box.addEventListener('pointermove', e => { if (!drag) return; const n = Math.trunc((e.clientX - drag.x0) / 14); shown = step(drag.base, drag.unit, n); paint(); if (moving) moving(shown, drag.unit); });
     const end = () => { if (!drag) return; drag = null; box.classList.remove('dragging'); hint.textContent = ''; set(shown); };
     box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
     box.addEventListener('wheel', e => {
       e.preventDefault();
-      if (!drag) { shown = step(shown || { y: 1, m: 1, d: 1 }, 0, e.deltaY < 0 ? 1 : -1); paint(); clearTimeout(box.wt); box.wt = setTimeout(() => set(shown), 500); return; }
+      if (!drag) { shown = step(shown || { y: 1, m: 1, d: 1 }, 0, e.deltaY < 0 ? 1 : -1); paint(); if (moving) moving(shown); clearTimeout(box.wt); box.wt = setTimeout(() => set(shown), 500); return; }
       // a faster or slower step from here on; what's already moved stays
       drag.unit = Math.max(0, Math.min(3, drag.unit + (e.deltaY < 0 ? 1 : -1))); drag.base = { ...shown }; drag.x0 = e.clientX ?? drag.x0;
       hint.textContent = 'by ' + UNITS[drag.unit] + ' · the wheel changes the speed';
     }, { passive: false });
     box.addEventListener('keydown', e => {
       const k = { ArrowRight: [0, 1], ArrowLeft: [0, -1], ArrowUp: [0, 1], ArrowDown: [0, -1], PageUp: [2, 1], PageDown: [2, -1] }[e.key]; if (!k) return;
-      e.preventDefault(); shown = step(shown || { y: 1, m: 1, d: 1 }, e.shiftKey ? 3 : k[0], k[1]); paint(); clearTimeout(box.wt); box.wt = setTimeout(() => set(shown), 400);
+      e.preventDefault(); shown = step(shown || { y: 1, m: 1, d: 1 }, e.shiftKey ? 3 : k[0], k[1]); paint(); if (moving) moving(shown); clearTimeout(box.wt); box.wt = setTimeout(() => set(shown), 400);
     });
     return box;
   }
@@ -156,16 +156,25 @@ const PLAN = (() => {
   function timeline(main) {
     main.className = 'pagemain tlmain';
     const c = cal();
-    const setNow = async w => { A.camp.cal = { ...(A.camp.cal || {}), now: w }; await saveCamp(); paintNow(); };
+    const setNow = async w => { A.camp.cal = { ...(A.camp.cal || {}), now: w }; liveNow = null; await saveCamp(); paint(); };
     const head = pageHead('Timeline', 'Drag to move along it, scroll to zoom, right-click to add an event on that day.',
       btn('edit', 'Calendar', calendarDialog, 'ghost'), btn('plus', 'New event', () => { const e = newDoc({ type: 'event', fields: c.now ? { when: { ...c.now } } : {} }); openDoc(e.id); }, 'primary'));
-    const nowRow = h('div', { class: 'nowrow' }, h('span', { class: 'nowl', text: 'Today in the world' }), flipClock(c.now, setNow));
+    // while the clock turns, today's line travels with it (and the view follows it, so it never leaves the screen)
+    // and the timeline zooms in to the clock's pace (days, weeks, months, years) if it's too far out to see the line move
+    const nowMoving = (w, unit = 0) => {
+      const n = dayOf(w), W = area.clientWidth, span = [120, 2 * 365, 8 * 365, 150 * 365][unit] * DPY() / 365, ppd = W / span;
+      if (V.ppd < ppd * 0.5) V = { ppd, left: n - W / 2 / ppd };
+      const px = x(n); if (px < 60 || px > W - 60) V = { ...V, left: n - W / 2 / V.ppd };
+      liveNow = w; paint();
+    };
+    let liveNow = null;
+    const nowRow = h('div', { class: 'nowrow' }, h('span', { class: 'nowl', text: 'Today in the world' }), flipClock(c.now, setNow, nowMoving));
     const area = h('div', { class: 'tlarea', role: 'region', 'aria-label': 'Timeline. Arrow keys move along it, plus and minus zoom.', tabIndex: 0 });
     const axis = h('div', { class: 'tlaxis' }), ticks = h('div', { class: 'tlticks' }), items = h('div', { class: 'tlitems' }), nowLine = h('div', { class: 'tlnow' });
     area.append(axis, ticks, nowLine, items);
     main.append(h('div', { class: 'tltop' }, head, nowRow), area);
     const list = [];
-    for (const d of [...A.docs.values(), ...(SYNC.isPlayer() ? A.wdocs.values() : [])]) for (const [k, , kind] of FIELDS[d.type] || []) if (kind === 'wdate' && has(d.fields && d.fields[k])) list.push({ d, w: d.fields[k], n: dayOf(d.fields[k]) });
+    for (const d of [...A.docs.values(), ...(SYNC.isPlayer() ? A.wdocs.values() : [])]) for (const [k, , kind] of FIELDS[d.type] || []) if (kind === 'wdate' && has(d.fields && d.fields[k])) list.push({ d, k, w: d.fields[k], n: dayOf(d.fields[k]) });
     list.sort((a, b) => a.n - b.n);
     // the view: px per day, and which day sits at the left edge
     let V = tlView.get(cid());
@@ -191,24 +200,48 @@ const PLAN = (() => {
         for (let y = Math.floor(leftDay / dpy / stepY) * stepY; y * dpy <= rightDay; y += stepY) ticks.append(h('div', { class: 'tick major', style: `left:${x(y * dpy)}px` }, h('span', { text: y + (c.era ? ' ' + c.era : '') })));
       }
       // today
-      if (c.now) { nowLine.hidden = false; nowLine.style.left = x(dayOf(cal().now)) + 'px'; nowLine.dataset.label = 'Today · ' + wfmt(cal().now, true); } else nowLine.hidden = true;
+      const now = liveNow || cal().now;
+      if (now) { nowLine.hidden = false; nowLine.style.left = x(dayOf(now)) + 'px'; nowLine.dataset.label = 'Today · ' + wfmt(now, true); } else nowLine.hidden = true;
       // the events, in lanes above and below the line so they don't cover each other
       items.replaceChildren(); const lanes = [];
       for (const it of list) {
         const px = x(it.n); if (px < -260 || px > W + 40) continue;
         let lane = lanes.findIndex(end => end < px - 8); if (lane < 0) { lane = lanes.length; lanes.push(0); } lanes[lane] = px + 210;
-        const up = lane % 2 === 0, depth = Math.floor(lane / 2), fut = c.now && it.n > dayOf(c.now);
+        const up = lane % 2 === 0, depth = Math.floor(lane / 2), fut = now && it.n > dayOf(now);
         const txt = MD.plain(it.d.body).replace(/\s+/g, ' ').trim();
-        const card = h('button', { type: 'button', class: 'tlcard' + (up ? ' up' : ' down') + (fut ? ' future' : ''), style: `left:${px}px;--lane:${depth};--c:${typeColor(it.d)}`, onclick: () => openDoc(it.d.id), title: it.d.title },
+        const ro = isRO(it.d);
+        const card = h('button', { type: 'button', class: 'tlcard' + (up ? ' up' : ' down') + (fut ? ' future' : ''), style: `left:${px}px;--lane:${depth};--c:${typeColor(it.d)}`, onclick: () => { if (!card.moved) openDoc(it.d.id); }, title: it.d.title },
+          ro ? null : h('span', { class: 'tlh l', title: 'Drag to move it to another day', 'aria-hidden': 'true', onpointerdown: e => moveEvent(e, it, card) }),
+          ro ? null : h('span', { class: 'tlh r', title: 'Drag to move it to another day', 'aria-hidden': 'true', onpointerdown: e => moveEvent(e, it, card) }),
           h('span', { class: 'tdate', text: wfmt(it.w, true) + (fut ? ' · to come' : '') }), h('span', { class: 'tlt' }, h('span', { class: 'tic', html: icon(TYPES[it.d.type].icon) }), h('b', { text: it.d.title })), txt ? h('small', { text: txt.slice(0, 80) + (txt.length > 80 ? '…' : '') }) : null);
         items.append(h('div', { class: 'tlstem' + (up ? ' up' : ' down'), style: `left:${px}px;--lane:${depth};--c:${typeColor(it.d)}` }), card);
       }
       if (!list.length) items.append(h('p', { class: 'tlempty hint', text: 'Nothing has a date in the world yet. Right-click the line to add an event, or give a session its date "in the world".' }));
     }
-    function paintNow() { const n = cal().now; nowRow.replaceChild(flipClock(n, setNow), nowRow.lastChild); paint(); }
-    // dragging the empty timeline moves along it; only sideways
+    // an event grabbed by its edge moves along the line to another day; a small box above it shows the old date and the new one
+    function moveEvent(e, it, card) {
+      if (e.button !== 0) return; e.preventDefault(); e.stopPropagation();
+      const sx = e.clientX, n0 = it.n, w0 = { ...it.w }, stem = card.previousElementSibling, tip = h('div', { class: 'tlmove', role: 'status' });
+      card.classList.add('moving'); card.setPointerCapture(e.pointerId); area.append(tip);
+      let n = n0;
+      const show = () => { const px = x(n); card.style.left = px + 'px'; if (stem) stem.style.left = px + 'px'; const r = card.getBoundingClientRect(), ar = area.getBoundingClientRect();
+        tip.replaceChildren(h('span', { class: 'was', text: wfmt(w0, true) }), h('span', { text: ' → ' }), h('b', { text: wfmt(fromDay(n), true) }));
+        tip.style.left = (r.left - ar.left + r.width / 2) + 'px'; tip.style.top = (r.top - ar.top - 8) + 'px'; };
+      show();
+      const mv = m => { const d = Math.round((m.clientX - sx) / V.ppd); if (d) card.moved = true; n = n0 + d; show(); };
+      const up = () => {
+        card.removeEventListener('pointermove', mv); card.removeEventListener('pointerup', up); card.removeEventListener('pointercancel', up); tip.remove(); card.classList.remove('moving');
+        setTimeout(() => { card.moved = false; }, 0);
+        if (n === n0) { paint(); return; }
+        const w = fromDay(n); it.d.fields = { ...(it.d.fields || {}), [it.k]: w }; it.w = w; it.n = n; touch(it.d, true); list.sort((a, b) => a.n - b.n); paint();
+        toast(`"${it.d.title}" moved to ${wfmt(w)}.`);
+      };
+      card.addEventListener('pointermove', mv); card.addEventListener('pointerup', up); card.addEventListener('pointercancel', up);
+    }
+    // dragging the empty timeline moves along it; only sideways (and never selects the text on the page)
     area.addEventListener('pointerdown', e => {
       if (e.button !== 0 || e.target.closest('.tlcard')) return;
+      e.preventDefault(); window.getSelection().removeAllRanges();
       const sx = e.clientX, l0 = V.left; area.setPointerCapture(e.pointerId); area.classList.add('grab');
       const mv = m => { V = { ...V, left: l0 - (m.clientX - sx) / V.ppd }; paint(); };
       const up = () => { area.removeEventListener('pointermove', mv); area.removeEventListener('pointerup', up); area.classList.remove('grab'); };

@@ -987,3 +987,17 @@ body.wfull #main.flow .docscroll>.banner{height:386px}
 body.touring #hov{z-index:2150}
 /* the version, under the logo */
 .appver{display:block;font:600 12px var(--ui);letter-spacing:.08em;color:var(--faint);margin-top:-10px}
+
+/* the timeline never selects text while it's dragged; today's line glides to a new day */
+.tlarea,.tlarea *{user-select:none;-webkit-user-select:none}
+.tlnow{transition:left .18s ease-out}
+.tlarea.grab .tlnow{transition:none}
+/* an event's edges are handles: grab one to move the event to another day */
+.tlh{position:absolute;top:0;bottom:0;width:10px;cursor:ew-resize;z-index:1;border-radius:inherit}
+.tlh.l{left:0}.tlh.r{right:0}
+.tlh:hover{background:color-mix(in srgb,var(--c,var(--accent)) 30%,transparent)}
+.tlcard.moving{z-index:5;box-shadow:0 0 0 2px var(--c,var(--accent)),var(--shadow-2,var(--shadow));transition:none}
+.tlmove{position:absolute;z-index:6;transform:translate(-50%,-100%);white-space:nowrap;padding:6px 10px;border-radius:9px;background:var(--surface-3,var(--panel2));box-shadow:var(--shadow-2,var(--shadow));font-size:12.5px;pointer-events:none}
+.tlmove .was{color:var(--faint);text-decoration:line-through}
+.tlmove b{color:var(--accent-hi,var(--accent))}
+@media (prefers-reduced-motion:reduce){.tlnow{transition:none}}
