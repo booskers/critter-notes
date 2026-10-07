@@ -913,3 +913,26 @@ input[type=range].tint:hover::-webkit-slider-thumb{box-shadow:0 0 0 3px var(--ac
 .rtab{border-radius:8px;border-bottom:0}
 .rtab:hover{background:var(--hover);color:var(--ink)}
 .rtab.on{background:var(--hover-2);color:var(--ink);border-color:transparent}
+/* a document's page runs up under its bar and the title bar (#main.flow): the banner spans the whole middle from the window's top,
+   and the picture's glow spreads out softly with nothing cutting it. The bar turns to glass once the page scrolls under it. */
+#main.flow{padding-top:0}
+#main.flow .docbar{position:absolute;top:34px;left:0;right:0;z-index:6;border-bottom-color:transparent;background:transparent;backdrop-filter:none;transition:background var(--dur,.2s),backdrop-filter var(--dur,.2s)}
+#main.flow.scrolled .docbar{background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(10px)}
+#main.flow .docscroll{padding-top:80px}
+body.wfull #main.flow .docbar{top:0}
+body.wfull #main.flow .docscroll{padding-top:46px}
+#main.flow .docscroll>.banner{height:380px;margin:-80px 0 0;-webkit-mask-image:linear-gradient(#000 50%,transparent);mask-image:linear-gradient(#000 50%,transparent)}
+body.wfull #main.flow .docscroll>.banner{margin-top:-46px;height:346px}
+#main.flow .docscroll>.banner .bantools{top:94px}
+#main.flow .hasbanner .dhero{margin-top:-170px}
+#main.flow .hasbanner .banhover{display:none}
+/* the glow: the picture blurred into a soft cloud, no mask (a mask clipped the blur at the box's edges) */
+.dtop .glow{left:-35%;top:-160px;width:110%;height:640px;-webkit-mask-image:none;mask-image:none;filter:blur(90px) saturate(1.5)}
+#main.flow .docscroll>.banner{height:420px;-webkit-mask-image:linear-gradient(#000 30%,rgb(0 0 0/.55) 62%,rgb(0 0 0/.18) 84%,transparent);mask-image:linear-gradient(#000 30%,rgb(0 0 0/.55) 62%,rgb(0 0 0/.18) 84%,transparent)}
+body.wfull #main.flow .docscroll>.banner{height:386px}
+/* a shade at the top keeps the title bar and the document bar readable over a bright banner */
+#main.flow .docscroll>.banner::after{content:"";position:absolute;inset:0 0 auto;height:150px;background:linear-gradient(rgb(0 0 0/.6),rgb(0 0 0/.25) 60%,transparent);pointer-events:none}
+:root[data-theme=light] #main.flow .docscroll>.banner::after{background:linear-gradient(rgb(255 255 255/.75),rgb(255 255 255/.3) 60%,transparent)}
+#main.flow:has(.docscroll>.banner):not(.scrolled) .docbar{text-shadow:0 1px 2px rgb(0 0 0/.6)}
+:root[data-theme=light] #main.flow:has(.docscroll>.banner):not(.scrolled) .docbar{text-shadow:0 1px 1px rgb(255 255 255/.8)}
+#main.flow .hasbanner .dhero{margin-top:-200px}

@@ -363,7 +363,12 @@ function renderDoc(main, d) {
   }
   const scroll = h('div', { class: 'docscroll', 'data-pan': 'y' }), page = h('div', { class: 'page' });
   if (ro) page.append(SYNC.isPlayer() ? h('div', { class: 'robar', role: 'note' }, h('span', { html: icon('eye') }), h('span', { text: 'Shared with you by the GM. Read only.' })) : h('div', { class: 'robar', role: 'note' }, h('span', { html: icon('globe') }), h('span', {}, 'From the shared world ', h('b', { text: A.wname }), '. Read only here.'), h('span', { class: 'grow' }), btn('open', 'Open it there', () => openWorldDoc(d), 'tiny')));
-  page.append(h('h1', { class: 'sr', text: `${d.title} (${TYPES[d.type].name})` }), docHead(d, ro));
+  // the page runs up under the document bar and the title bar: a banner spans the whole middle from the window's top, and a picture's glow spreads freely
+  main.classList.add('flow');
+  scroll.addEventListener('scroll', () => main.classList.toggle('scrolled', scroll.scrollTop > 24), { passive: true });
+  const head = docHead(d, ro), bn = head.querySelector(':scope > .banner');
+  if (bn) scroll.append(bn);
+  page.append(h('h1', { class: 'sr', text: `${d.title} (${TYPES[d.type].name})` }), head);
   if (d.live && TABLE.on()) page.append(h('div', { class: 'livebar', role: 'note' }, h('span', { html: icon('eye') }), h('span', { text: 'The players see this. Changes reach their notes a few seconds after you write them.' }), h('span', { class: 'grow' }), btn(null, 'Stop showing it', () => { d.live = false; touch(d, true); renderMain(); renderSide(); }, 'tiny ghost')));
   if (d.carried) { page.append(h('p', { class: 'hint note', text: `${plural(d.carried, 'unrevealed clue')} came along from the last session.` })); delete d.carried; }
   page.append(propsBox(d, ro));

@@ -1,5 +1,9 @@
 # Changelog
 
+## Next
+- A banner spans the whole middle and flows up under the title bar; the document bar turns to glass once you scroll.
+- A picture's glow spreads out softly to the edges instead of being cut off.
+
 ## 1.3.1 (2026-10-07)
 - Campaigns are kept in Documents\CritterNotes now (next to Documents\CritterVTT).
 - Campaigns in the old Documents\Critter Notes folder move there by themselves the first time Notes starts; a folder you chose yourself stays where it is.
