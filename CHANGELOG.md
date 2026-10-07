@@ -1,5 +1,15 @@
 # Changelog
 
+## Next
+- The notes drawer: a tab at the bottom of the window (Ctrl+J) slides up into a canvas of to-do lists, notes and links. Drag it taller or shorter, right-click for something new, and drag a block onto a document to put it there. Open to-dos show on Home; Settings can turn it off.
+- A global undo history: Ctrl+Z and Ctrl+Y anywhere outside a text field, a rename or a delete is one step, a history window to go back several steps, and the number of steps in Settings › Writing.
+- Right-click menus everywhere that right-click did nothing: documents (links, chips, cards, timeline events, graph nodes) get their menu, and empty space offers undo, new, find, back, home and settings.
+- Home can show the campaign's cover as a blurred background. With a table linked, Critter VTT's cover is used, and a picture chosen in Notes goes to a table that has none. Settings can turn it off.
+- Timeline: dragging it never selects text; today's line travels with the flip clock (the timeline zooms to the clock's pace); grab an event by its edge to move it to another day, with the old and new date shown above it.
+- The relationships and the graph show each document's picture (ringed in its kind's colour) or its kind's icon, and spread out so busy webs don't knot up.
+- A font for dyslexia (OpenDyslexic, with more room between lines and words), as in Critter VTT.
+- The tour shows the notes drawer, and every card stays 12px inside the window at any size, beside what it explains.
+
 ## 1.4.0 (2026-10-07)
 - A guided tour: the basics in two minutes, or everything in depth. It shows Critter Notes with a sample campaign, opens things and changes them around to show them off, and puts everything back when it ends. Offered once at the first start; again any time from Settings › Help, the welcome screen or the menu.
 - Link cards: rest the pointer on a link for a second to see its banner, portrait, kind, the facts that matter and how it begins, with sections and lists kept in their shape.

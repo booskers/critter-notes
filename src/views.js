@@ -60,6 +60,8 @@ const VIEWS = (() => {
     // fonts come in pairs: titles, the interface and reading text; Easy reading is every Critter app's base
     const curFonts = P.fonts || 'Easy reading';
     wrap.append(h('section', { class: 'setsec', 'aria-label': 'Fonts' }, h('h2', { text: 'Fonts' }),
+      row('A font for dyslexia', 'OpenDyslexic, with a little more space between lines and words. Its letters have heavier bottoms, so they don\'t flip or swap.',
+        sw(curFonts === 'Dyslexia-friendly', v => { if (v) { if (curFonts !== 'Dyslexia-friendly') P.fontsBefore = P.fonts || ''; set('fonts', 'Dyslexia-friendly'); } else { set('fonts', P.fontsBefore || ''); } renderMain(); }, 'A font for dyslexia')),
       h('div', { class: 'fontsets', role: 'radiogroup', 'aria-label': 'Fonts' }, ...FONT_SETS.map(([n, d, u, r]) => {
         const b = h('button', { type: 'button', role: 'radio', 'aria-checked': String(curFonts === n), class: 'fontset' + (curFonts === n ? ' on' : ''), onclick: () => { set('fonts', n === 'Easy reading' ? '' : n); renderMain(); } },
           h('small', { text: n + (n === 'Easy reading' ? ' · base' : '') }), h('b', { text: 'The dragon rolls a 20' }), h('span', { text: d === u ? `${d}` : `${d} titles, ${u}` }));

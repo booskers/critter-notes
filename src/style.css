@@ -1063,3 +1063,7 @@ body.touring #hov{z-index:2150}
 .tditem{display:flex;align-items:center;gap:9px;font-size:14px;cursor:pointer}
 .tditem.done span{color:var(--faint);text-decoration:line-through}
 @media (prefers-reduced-motion:reduce){.drpanel,.ndrawer.open .drpanel,.drtab,.drtab .drchev{transition:none}}
+
+/* the dyslexia font set: a little more room between lines and words */
+html.dysfont body{line-height:1.55;letter-spacing:.01em;word-spacing:.06em}
+html.dysfont .prose,html.dysfont .vis{line-height:1.75}

@@ -506,6 +506,8 @@ function docHead(d, ro) {
   const title = h('textarea', { class: 'title', rows: 1, value: d.title, spellcheck: true, placeholder: 'Untitled', 'aria-label': 'Title', readOnly: ro });
   const fit = () => { title.style.height = 'auto'; title.style.height = title.scrollHeight + 'px'; };
   title.addEventListener('input', fit); requestAnimationFrame(fit); setTimeout(fit, 50);
+  // and again once a web font (a font set, the dyslexia font) has arrived and made the title wider or narrower
+  if (document.fonts) { document.fonts.ready.then(fit); setTimeout(fit, 900); }
   title.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); title.blur(); if (A.ed) A.ed.focus(); } if (e.key === 'Escape') { title.value = d.title; title.blur(); } });
   title.addEventListener('blur', () => { if (!ro && title.value.trim() && title.value.trim() !== d.title) { renameDoc(d, title.value); title.value = d.title; paintTitle(); renderSide(); } else title.value = d.title; });
   const kind = h('button', { type: 'button', class: 'kindchip', style: `--c:${typeColor(d)}`, disabled: ro, title: ro ? '' : 'Change what kind of document this is', 'aria-label': `Kind: ${TYPES[d.type].name}${ro ? '' : '. Change it'}`, onclick: e => kindMenu(d, e.currentTarget) }, h('span', { html: icon(TYPES[d.type].icon) }), h('span', { text: TYPES[d.type].name }));

@@ -35,7 +35,8 @@ const DRAWER = (() => {
     if (open) setTimeout(() => { const f = panel.querySelector('textarea,input'); if (!f) canvas.focus(); }, 300);
   }
   function build() {
-    const grip = h('div', { class: 'drgrip', role: 'separator', 'aria-orientation': 'horizontal', 'aria-label': 'Drawer height', tabIndex: 0, title: 'Drag to make the drawer taller or shorter' });
+    const grip = h('div', { class: 'drgrip', role: 'separator', 'aria-orientation': 'horizontal', 'aria-label': 'Drawer height', 'aria-valuemin': '170', 'aria-valuemax': String(innerHeight - 90), 'aria-valuenow': String(H()), tabIndex: 0, title: 'Drag to make the drawer taller or shorter (or the arrow keys)' });
+    const told = () => { grip.setAttribute('aria-valuenow', String(Math.round(panel.offsetHeight || H()))); grip.setAttribute('aria-valuemax', String(innerHeight - 90)); };
     canvas = h('div', { class: 'drcanvas', tabIndex: 0, 'aria-label': 'The drawer\'s canvas. Right-click for a new to-do list or note; drag empty space to move around.' });
     world = h('div', { class: 'drworld' }); canvas.append(world);
     const head = h('div', { class: 'drhead' },
@@ -48,10 +49,10 @@ const DRAWER = (() => {
       if (e.button !== 0) return; e.preventDefault(); grip.setPointerCapture(e.pointerId); panel.classList.add('sizing');
       const y0 = e.clientY, h0 = panel.offsetHeight;
       const mv = m => { const v = Math.max(170, Math.min(innerHeight - 90, h0 + (y0 - m.clientY))) + 'px'; panel.style.height = v; el.style.setProperty('--drh', v); };
-      const up = () => { grip.removeEventListener('pointermove', mv); grip.removeEventListener('pointerup', up); panel.classList.remove('sizing'); A.prefs.drawerH = panel.offsetHeight; savePrefs(); };
+      const up = () => { grip.removeEventListener('pointermove', mv); grip.removeEventListener('pointerup', up); panel.classList.remove('sizing'); A.prefs.drawerH = panel.offsetHeight; savePrefs(); told(); };
       grip.addEventListener('pointermove', mv); grip.addEventListener('pointerup', up);
     });
-    grip.addEventListener('keydown', e => { const d = { ArrowUp: 30, ArrowDown: -30 }[e.key]; if (!d) return; e.preventDefault(); A.prefs.drawerH = Math.max(170, Math.min(innerHeight - 90, panel.offsetHeight + d)); panel.style.height = A.prefs.drawerH + 'px'; el.style.setProperty('--drh', A.prefs.drawerH + 'px'); savePrefs(); });
+    grip.addEventListener('keydown', e => { const d = { ArrowUp: 30, ArrowDown: -30 }[e.key]; if (!d) return; e.preventDefault(); A.prefs.drawerH = Math.max(170, Math.min(innerHeight - 90, panel.offsetHeight + d)); panel.style.height = A.prefs.drawerH + 'px'; el.style.setProperty('--drh', A.prefs.drawerH + 'px'); savePrefs(); told(); });
     // empty space moves the canvas; the wheel too
     canvas.addEventListener('pointerdown', e => {
       if (e.button !== 0 || e.target.closest('.drb')) return; e.preventDefault();

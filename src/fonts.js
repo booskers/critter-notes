@@ -12,7 +12,9 @@ const FONT_SETS = [
   ['Pulp', 'Texturina', 'Rubik', 'Spectral'],
   ['Neon', 'Unbounded', 'Onest', 'Atkinson Hyperlegible Next'],
   ['Jolly Roger', 'Pirata One', 'Outfit', 'Alegreya'],
-  ['Studio', 'Syne', 'Bricolage Grotesque', 'Newsreader']
+  ['Studio', 'Syne', 'Bricolage Grotesque', 'Newsreader'],
+  // the same in Critter VTT and Critter Sounds: OpenDyslexic (Fontsource), with Lexend where it can't load
+  ['Dyslexia-friendly', 'OpenDyslexic', 'OpenDyslexic', 'OpenDyslexic']
 ];
 // each face: its Google Fonts query ('' = bundled), serif or sans, and the weight titles use
 const FONT_FACES = {
@@ -24,13 +26,19 @@ const FONT_FACES = {
   'Young Serif': ['Young+Serif', 'serif', 400], 'Figtree': ['Figtree:wght@300..900', 'sans', 700], 'Newsreader': ['Newsreader:opsz,wght@6..72,200..800', 'serif', 650],
   'Texturina': ['Texturina:opsz,wght@12..72,300..900', 'serif', 650], 'Rubik': ['Rubik:wght@300..900', 'sans', 700], 'Unbounded': ['Unbounded:wght@300..900', 'sans', 650],
   'Onest': ['Onest:wght@300..800', 'sans', 700], 'Pirata One': ['Pirata+One', 'serif', 400], 'Outfit': ['Outfit:wght@300..800', 'sans', 700],
-  'Syne': ['Syne:wght@400..800', 'sans', 750], 'Bricolage Grotesque': ['Bricolage+Grotesque:opsz,wght@12..96,300..800', 'sans', 750]
+  'Syne': ['Syne:wght@400..800', 'sans', 750], 'Bricolage Grotesque': ['Bricolage+Grotesque:opsz,wght@12..96,300..800', 'sans', 750],
+  'OpenDyslexic': ['Lexend:wght@300..800', 'sans', 700]
 };
+const DYS_CSS = ['https://cdn.jsdelivr.net/npm/@fontsource/opendyslexic@5/index.css', 'https://cdn.jsdelivr.net/npm/@fontsource/opendyslexic@5/700.css'];
 function fontStack(name) {
   const f = FONT_FACES[name] || FONT_FACES['Atkinson Hyperlegible Next'];
   if (f[0] && !document.querySelector(`link[data-font="${f[0]}"]`)) {
     const l = document.createElement('link'); l.rel = 'stylesheet'; l.dataset.font = f[0];
     l.href = `https://fonts.googleapis.com/css2?family=${f[0]}&display=swap`; document.head.append(l);
+  }
+  if (name === 'OpenDyslexic') {
+    for (const u of DYS_CSS) if (!document.querySelector(`link[href="${u}"]`)) { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = u; document.head.append(l); }
+    return '"OpenDyslexic","Lexend",sans-serif';
   }
   return `"${name}",${f[1] === 'serif' ? 'Georgia,serif' : '"Atkinson Hyperlegible Next","Segoe UI",system-ui,sans-serif'}`;
 }
@@ -40,4 +48,6 @@ function applyFontSet(el, name) {
   const [, d, u, r] = fontSet(name), st = el.style;
   st.setProperty('--font-display', fontStack(d)); st.setProperty('--fw-display', (FONT_FACES[d] || [0, 0, 750])[2]);
   st.setProperty('--font-ui', fontStack(u)); st.setProperty('--font-read', fontStack(r));
+  // the dyslexia set also opens up lines and words a little (on the page itself, not on a preview)
+  if (el === document.documentElement) el.classList.toggle('dysfont', d === 'OpenDyslexic');
 }
