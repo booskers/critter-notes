@@ -150,13 +150,18 @@ const LINK = (() => {
     if (A.view.k === 'doc' && A.view.id === id) go({ k: 'home' }, true);
   }
 
-  /* ---------- sending a change: a moment after it's made (at most every 6 s while it keeps changing) ---------- */
+  /* ---------- sending a change: a moment after it's made (at most every 6 s while it keeps changing). With no other
+     device open nobody is waiting for it, so it waits for a longer pause (5 s, at most every 30 s): fewer writes ---------- */
   function dirty(d) { if (L.on && d && d.id) queuePush(d.id); }
   function campDirty() { if (L.on) queuePush('_camp'); }
   function queuePush(id, soon) {
     clearTimeout(L.pushT.get(id)); const now = Date.now(); if (!L.firstT.has(id)) L.firstT.set(id, now);
-    L.pushT.set(id, setTimeout(() => { L.pushT.delete(id); L.firstT.delete(id); push(id); }, soon ? 50 : now - L.firstT.get(id) > 6000 ? 0 : 1500));
+    const [wait, most] = L.peers.length ? [1500, 6000] : [5000, 30000];
+    L.pushT.set(id, setTimeout(() => { L.pushT.delete(id); L.firstT.delete(id); push(id); }, soon ? 50 : now - L.firstT.get(id) > most ? 0 : wait));
   }
+  // leaving or hiding the page: what's waiting goes now
+  const sendAll = () => { for (const [id, t] of L.pushT) { clearTimeout(t); L.pushT.delete(id); L.firstT.delete(id); push(id); } };
+  addEventListener('pagehide', sendAll); document.addEventListener('visibilitychange', () => { if (document.hidden) sendAll(); });
   const pushing = new Set();
   async function push(id) {
     if (!L.on || pushing.has(id)) { if (pushing.has(id)) queuePush(id); return; }
@@ -222,7 +227,7 @@ const LINK = (() => {
       L.room.onPeers(async ({ peers }) => {
         const out = [];
         for (const p of peers) { if (p.sameTab || !p.presence || !p.presence.s) continue; try { out.push(await unseal(p.presence.s)); } catch {} }
-        L.peers = out; paint(); compare();
+        const came = out.length > L.peers.length; L.peers = out; paint(); compare(); if (came) sendAll();
       });
       tellPresence();
     } catch {}
