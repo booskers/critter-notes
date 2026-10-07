@@ -22,13 +22,13 @@ const esc = MD.esc;
 const rid = (p = '') => p + Array.from(crypto.getRandomValues(new Uint8Array(10)), b => 'abcdefghijklmnopqrstuvwxyz0123456789'[b % 36]).join('');
 const clone = v => JSON.parse(JSON.stringify(v));
 const debounce = (fn, ms) => { let t = 0; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
-const LS = { get(k, d) { try { const v = localStorage.getItem('cn.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { localStorage.setItem('cn.' + k, JSON.stringify(v)); } catch {} } };
+const LS = { get(k, d) { try { const v = localStorage.getItem('cn.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { localStorage.setItem('cn.' + k, JSON.stringify(v)); } catch {} }, del(k) { try { localStorage.removeItem('cn.' + k); } catch {} } };
 const errText = e => String((e && e.message) || e || 'Something went wrong').replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 const ago = ts => { const s = (Date.now() - ts) / 1000; return s < 60 ? 'just now' : s < 3600 ? Math.floor(s / 60) + ' min ago' : s < 86400 ? Math.floor(s / 3600) + ' h ago' : s < 86400 * 30 ? Math.floor(s / 86400) + ' d ago' : new Date(ts).toLocaleDateString(); };
 const plural = (n, a, b) => `${n} ${n === 1 ? a : b || a + 's'}`;
 
 /* ============================== state ============================== */
-const A = { camps: [], camp: null, docs: new Map(), wdocs: new Map(), wname: '', view: { k: 'none' }, back: [], fwd: [], modes: new Map(), dirty: new Set(), idx: { title: new Map(), back: new Map(), tags: new Map() },
+const A = { camps: [], camp: null, docs: new Map(), trash: new Map(), wdocs: new Map(), wname: '', view: { k: 'none' }, back: [], fwd: [], modes: new Map(), dirty: new Set(), idx: { title: new Map(), back: new Map(), tags: new Map() },
   prefs: Object.assign({ side: 'kind', right: innerWidth > 1280, rightTab: 'links', closed: { world: true }, open: {}, details: {}, theme: 'dark', readSize: 'm', readFont: 'serif', toolbar: true }, LS.get('prefs', {})) };
 const savePrefs = () => LS.set('prefs', A.prefs);
 const cid = () => A.camp && A.camp.id;
@@ -44,14 +44,14 @@ function touch(doc, quiet) {
   if (!A.docs.has(doc.id)) return;
   histRecord(doc.id, snapOf(doc));
   doc.updated = Date.now(); A.dirty.add(doc.id); clearTimeout(saveT); if (!saveFirst) saveFirst = Date.now(); saveT = setTimeout(flush, Date.now() - saveFirst > 3000 ? 0 : 600); if (!quiet) reindexSoon();
-  PLAN.liveTouch(doc); SYNC.dirty(doc);
+  PLAN.liveTouch(doc); SYNC.dirty(doc); LINK.dirty(doc);
 }
 async function flush() {
   clearTimeout(saveT); saveFirst = 0;
   const ids = [...A.dirty]; A.dirty.clear();
   for (const id of ids) { const d = A.docs.get(id); if (!d) continue; try { await STORE.saveDoc(cid(), d); } catch (e) { A.dirty.add(id); toast('Could not save "' + d.title + '": ' + errText(e)); } }
 }
-async function saveCamp() { if (!A.camp) return; histRecord('#camp', campSnap()); A.camp.updated = Date.now(); try { await STORE.saveCampaign(A.camp); } catch (e) { toast('Could not save the campaign: ' + errText(e)); } SYNC.campDirty(); }
+async function saveCamp() { if (!A.camp) return; histRecord('#camp', campSnap()); A.camp.updated = Date.now(); try { await STORE.saveCampaign(A.camp); } catch (e) { toast('Could not save the campaign: ' + errText(e)); } SYNC.campDirty(); LINK.campDirty(); }
 
 /* ---------- the undo history: every change to a document (and to the campaign) can be undone and redone from anywhere ---------- */
 // each step keeps the before and after of what it changed; typing in one document within 1.5 s is one step;
@@ -96,10 +96,10 @@ function histGroup(label, fn) {
 }
 async function histApply(id, state) {
   if (id === '#camp') { if (!A.camp || !state) return; const o = JSON.parse(state); for (const k of Object.keys(A.camp)) if (k !== 'updated' && k !== 'last' && !(k in o)) delete A.camp[k]; Object.assign(A.camp, o); HIST.snap.set(id, state); await saveCamp(); return; }
-  if (state === null) { if (A.docs.has(id)) { A.docs.delete(id); A.dirty.delete(id); SYNC.removed(id); await STORE.trashDoc(cid(), id).catch(() => {}); } HIST.snap.delete(id); return; }
+  if (state === null) { const d = A.docs.get(id); if (d) await toTrash(d); HIST.snap.delete(id); return; }
   const o = JSON.parse(state); let d = A.docs.get(id);
-  if (d) { for (const k of Object.keys(d)) delete d[k]; Object.assign(d, o); } else { d = o; A.docs.set(id, d); }
-  d.updated = Date.now(); A.dirty.add(id); SYNC.dirty(d); HIST.snap.set(id, state);
+  if (d) { for (const k of Object.keys(d)) delete d[k]; Object.assign(d, o); } else { d = A.trash.get(id) || o; for (const k of Object.keys(d)) delete d[k]; Object.assign(d, o); A.trash.delete(id); A.docs.set(id, d); }
+  delete d.trashed; d.updated = Date.now(); A.dirty.add(id); SYNC.dirty(d); LINK.dirty(d); HIST.snap.set(id, state);
 }
 async function histStep(dir) {
   if (A.ed) A.ed.commit();
@@ -204,12 +204,60 @@ async function deleteDoc(id) {
   await histGroup(`Delete "${d.title}"`, async () => {
     const kids = [...A.docs.values()].filter(x => x.parent === id);
     kids.forEach(k => { k.parent = d.parent || ''; touch(k, true); });
-    A.docs.delete(id); A.dirty.delete(id); SYNC.removed(id); histRecord(id, null);
-    await STORE.trashDoc(cid(), id).catch(e => toast('Could not delete it: ' + errText(e)));
+    histRecord(id, null); await toTrash(d);
   });
   reindex();
   if (A.view.k === 'doc' && A.view.id === id) go({ k: 'home' }, true); else render();
-  toast(`Deleted "${d.title}".`, { label: 'Undo', fn: () => undo() });
+  toast(`"${d.title}" is in the trash for 30 days.`, { label: 'Undo', fn: () => undo() });
+}
+/* ---------- the trash: deleted documents wait 30 days, then go for good (sooner when deleted there) ---------- */
+const TRASH_DAYS = 30;
+// a document into the trash: it keeps everything, marked with when; linked devices move theirs too
+async function toTrash(d) {
+  A.docs.delete(d.id); A.dirty.delete(d.id); SYNC.removed(d.id);
+  d.trashed = Date.now(); d.updated = d.trashed; A.trash.set(d.id, d);
+  await STORE.saveDoc(cid(), d).catch(e => toast('Could not move it to the trash: ' + errText(e)));
+  LINK.dirty(d); paintTrash();
+}
+async function restoreFromTrash(id) {
+  const d = A.trash.get(id); if (!d) return;
+  await histGroup(`Restore "${d.title}"`, async () => {
+    A.trash.delete(id); delete d.trashed; if (d.parent && !A.docs.has(d.parent)) d.parent = '';
+    A.docs.set(id, d); HIST.snap.delete(id); touch(d);
+  });
+  reindex(); render(); paintTrash(); toast(`"${d.title}" is back.`, { label: 'Open it', fn: () => openDoc(id) });
+}
+// for good: from the trash, or by the 30 days running out (the desktop app's copy goes to the recycle bin)
+async function deleteForGood(id, quiet) {
+  const d = A.trash.get(id); if (!d) return;
+  A.trash.delete(id); HIST.snap.delete(id);
+  for (const e of [...HIST.undo, ...HIST.redo]) e.changes = e.changes.filter(c => c.id !== id);
+  await STORE.trashDoc(cid(), id).catch(() => {});
+  LINK.gone(id); paintTrash();
+  if (!quiet) { if (A.view.k === 'trash') renderMain(); toast(`"${d.title}" is gone for good.`); }
+}
+async function purgeTrash() {
+  const old = [...A.trash.values()].filter(d => Date.now() - d.trashed > TRASH_DAYS * 864e5);
+  for (const d of old) await deleteForGood(d.id, true);
+}
+function paintTrash() {
+  const b = $('#trashBtn'); if (!b) return; const n = A.trash ? A.trash.size : 0;
+  b.hidden = !A.camp || SYNC.isPlayer(); b.title = n ? `Trash: ${plural(n, 'document')}` : 'Trash (empty)'; b.setAttribute('aria-label', b.title);
+  b.classList.toggle('has', !!n); b.dataset.n = n ? String(n) : '';
+}
+function trashPage(main) {
+  main.className = 'pagemain';
+  const list = [...A.trash.values()].sort((a, b) => b.trashed - a.trashed), left = d => Math.max(0, Math.ceil(TRASH_DAYS - (Date.now() - d.trashed) / 864e5));
+  const wrap = h('div', { class: 'pagein' }, h('div', { class: 'phead' }, h('div', {}, h('h1', { text: 'Trash', tabIndex: -1 }),
+    h('p', { class: 'hint', text: `Deleted documents wait here for ${TRASH_DAYS} days, then go for good. On linked devices too.` })),
+    h('span', { class: 'grow' }), list.length ? btn('trash', 'Empty the trash', async () => { if (!(await confirmBox('Empty the trash?', `${plural(list.length, 'document')} go for good. This can't be undone.`, 'Empty it'))) return; for (const d of list) await deleteForGood(d.id, true); renderMain(); toast('The trash is empty.'); }, 'tiny ghost bad') : null));
+  if (!list.length) wrap.append(h('p', { class: 'empty', text: 'The trash is empty.' }));
+  else wrap.append(h('div', { class: 'trashlist', role: 'list' }, ...list.map(d => h('div', { class: 'trashrow', role: 'listitem', style: `--c:${typeColor(d)}` },
+    h('span', { class: 'ti', html: icon(TYPES[d.type] ? TYPES[d.type].icon : 'note') }),
+    h('div', { class: 'tt' }, h('b', { text: d.title }), h('small', { text: `Deleted ${new Date(d.trashed).toLocaleDateString()}${d.conflict ? ' · ' + d.conflict : ''} · goes for good in ${plural(left(d), 'day')}` })),
+    btn('undo', 'Restore', () => restoreFromTrash(d.id), 'tiny'),
+    btn('trash', 'Delete for good', async () => { if (await confirmBox('Delete it for good?', `"${d.title}" can't be brought back after this.`, 'Delete for good')) deleteForGood(d.id); }, 'tiny ghost bad')))));
+  main.append(wrap);
 }
 // renaming keeps every link to it working
 function renameDoc(d, title) {
@@ -244,7 +292,8 @@ const PAGES = {
   threads: { name: 'Threads', icon: 'key', render: m => PLAN.threads(m), hint: 'Quests, clocks and clues' },
   rels: { name: 'Relationships', icon: 'rels', render: m => PLAN.relsPage(m), hint: 'Who is tied to whom' },
   graph: { name: 'Graph', icon: 'graph', render: m => VIEWS.graph(m), hint: 'Everything and how it links (Ctrl+G)' },
-  settings: { name: 'Settings', icon: 'gear', render: m => VIEWS.settings(m), nav: false }
+  settings: { name: 'Settings', icon: 'gear', render: m => VIEWS.settings(m), nav: false },
+  trash: { name: 'Trash', icon: 'trash', render: m => trashPage(m), nav: false }
 };
 function go(view, replace) {
   // leaving a document locks it, when that's how you like it
@@ -806,6 +855,7 @@ function menu(items, at) {
   menuFrom = document.activeElement;
   const m = h('div', { class: 'menu', role: 'menu', 'aria-label': (items[0] && items[0].head) || 'Menu' });
   for (const it of items) {
+    if (!it) continue;
     if (it === '-') { m.append(h('div', { class: 'msep', role: 'separator' })); continue; }
     if (it.head) { m.append(h('div', { class: 'mhead', text: it.head, 'aria-hidden': 'true' })); continue; }
     m.append(h('button', { type: 'button', class: 'mi' + (it.cls ? ' ' + it.cls : ''), role: it.check !== undefined ? 'menuitemcheckbox' : 'menuitem', 'aria-checked': it.check !== undefined ? String(!!it.check) : null, tabIndex: -1, disabled: !!it.disabled, title: it.title || '', onclick: () => { closeMenu(); it.fn(); } },
@@ -983,18 +1033,20 @@ addEventListener('pagehide', () => { saveAllNow().catch(() => {}); });
 /* ============================== campaigns ============================== */
 async function loadCampaigns() { A.camps = (await STORE.listCampaigns().catch(() => [])).sort((a, b) => (b.updated || 0) - (a.updated || 0)); }
 async function openCampaign(id) {
-  await flush(); SYNC.stop();
+  await flush(); SYNC.stop(); LINK.stop();
   const meta = A.camps.find(c => c.id === id); if (!meta) return;
-  A.camp = meta; A.docs = new Map(); A.back = []; A.fwd = []; A.modes = new Map(); mapViews.clear(); mindViews.clear();
+  A.camp = meta; A.docs = new Map(); A.trash = new Map(); A.back = []; A.fwd = []; A.modes = new Map(); mapViews.clear(); mindViews.clear();
   A.prefs.lastCamp = id; savePrefs();
-  try { for (const d of await STORE.loadDocs(id)) { if (d && d.id) { d.body = String(d.body || ''); d.title = String(d.title || 'Untitled'); d.fields = d.fields || {}; if (!TYPES[d.type]) d.type = 'note'; A.docs.set(d.id, d); } } }
+  try { for (const d of await STORE.loadDocs(id)) { if (d && d.id) { d.body = String(d.body || ''); d.title = String(d.title || 'Untitled'); d.fields = d.fields || {}; if (!TYPES[d.type]) d.type = 'note'; (d.trashed ? A.trash : A.docs).set(d.id, d); } } }
   catch (e) { toast('Could not read the campaign: ' + errText(e)); }
   await PLAN.loadWorld();
+  await purgeTrash(); paintTrash();
   reindex(); histReset();
   A.view = { k: 'none' };
   go(meta.last && D(meta.last) ? { k: 'doc', id: meta.last } : { k: 'home' }, true);
   if (meta.table) TABLE.connect(meta.table); else TABLE.disconnect();
   if (meta.share && meta.share.on) SYNC.start(); SYNC.paintRole();
+  LINK.start();
   DRAWER.mount();
 }
 async function createCampaign(o) {
@@ -1010,6 +1062,8 @@ function campaignMenu(at) {
     '-',
     { label: 'New campaign…', icon: 'plus', fn: () => VIEWS.newCampaign() },
     { label: 'Join a campaign…', icon: 'users', fn: () => VIEWS.joinMenu(at) },
+    { label: 'Link to my computer…', icon: 'link', fn: () => LINKUI.joinDialog() },
+    A.camp && !SYNC.isPlayer() ? { label: 'Link a device…', icon: 'link', fn: () => LINKUI.offerDialog() } : null,
     { label: 'Settings', icon: 'gear', fn: () => go({ k: 'settings' }) }], at);
 }
 
@@ -1058,6 +1112,8 @@ function wireWindow() {
   $('#campBtn').onclick = e => campaignMenu(e.currentTarget);
   $('#newBtn').onclick = e => newDocMenu(null, e.currentTarget);
   $('#findBtn').onclick = quickOpen;
+  $('#trashBtn').onclick = () => go({ k: 'trash' });
+  $('#linkChip').onclick = () => go({ k: 'settings' });
   $('#sideFilter').addEventListener('input', renderSide);
   $('#sideMode').onclick = () => { A.prefs.side = A.prefs.side === 'tree' ? 'kind' : 'tree'; savePrefs(); renderSide(); };
   $('#sideToggle').onclick = () => { A.prefs.sideHidden = !A.prefs.sideHidden; savePrefs(); renderSide(); };
@@ -1102,7 +1158,9 @@ async function boot() {
   await TOUR.sweep();
   const last = A.camps.find(c => c.id === A.prefs.lastCamp) || A.camps[0];
   if (last) await openCampaign(last.id); else render();
+  // an address from a computer's link (notes.crittervtt.com/#link=CODE): straight to linking
+  const linking = /[#&]link=/.test(location.hash); LINKUI.fromAddress();
   // the first time Notes opens, it offers the tour once
-  if (!A.prefs.tourAsked) setTimeout(() => { if (!document.querySelector('.modal')) TOUR.ask(); }, 900);
+  if (!A.prefs.tourAsked && !linking) setTimeout(() => { if (!document.querySelector('.modal')) TOUR.ask(); }, 900);
 }
 boot();

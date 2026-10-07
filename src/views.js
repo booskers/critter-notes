@@ -22,7 +22,7 @@ const VIEWS = (() => {
           h('div', { class: 'row' }, invite, btn(null, 'Join', async () => { try { await SYNC.joinWriter(invite.value); } catch (e) { toast(errText(e)); } }, 'primary'))),
         choice('character', 'Join as a player', 'You see what your GM shares with you, and keep your own notes. They\'re your notes in Critter VTT too.',
           h('div', { class: 'row' }, lobby, btn(null, 'Next', () => pickPlayer(lobby.value), 'primary')))),
-      h('div', { class: 'row center wrap' }, btn('compass', 'Take the tour', () => TOUR.ask(), 'ghost tiny'), btn('upload', 'Restore a backup', () => restore(), 'ghost tiny'), WEB.on ? h('a', { class: 'btn ghost tiny', href: WEB.DESKTOP, rel: 'noopener' }, h('span', { class: 'bi', html: icon('download') }), h('span', { text: 'Get the Windows app' })) : null),
+      h('div', { class: 'row center wrap' }, btn('compass', 'Take the tour', () => TOUR.ask(), 'ghost tiny'), btn('upload', 'Restore a backup', () => restore(), 'ghost tiny'), btn('link', 'Link to my computer', () => LINKUI.joinDialog(), 'ghost tiny'), WEB.on ? h('a', { class: 'btn ghost tiny', href: WEB.DESKTOP, rel: 'noopener' }, h('span', { class: 'bi', html: icon('download') }), h('span', { text: 'Get the Windows app' })) : null),
       h('p', { class: 'hint', text: STORE.kind === 'files' ? `Campaigns are kept as plain files in ${where.root}.` : 'Campaigns are kept in this browser.' })));
   }
   async function pickPlayer(code) {
@@ -109,6 +109,7 @@ const VIEWS = (() => {
           row('Stop sharing', 'Co-writers and players stop getting changes.', btn(null, 'Stop', async () => { await SYNC.unshare(false); renderMain(); }, 'tiny ghost'), btn(null, 'Stop and remove it from the table', async () => { if (await confirmBox('Remove it from the table?', 'The shared copy on the Homebase is deleted. Your own copy stays on this computer.', 'Remove it', true)) { await SYNC.unshare(true); renderMain(); } }, 'tiny ghost bad')));
       } else shareRows.push(row('Write it together', TABLE.on() ? 'Share this campaign with co-writers (they see and change everything) and with players (they see what you open to them).' : 'Link the campaign to its Critter VTT table first; sharing goes through the table.', btn('users', 'Share this campaign', async () => { if (await SYNC.share()) renderMain(); }, 'tiny primary')));
       wrap.append(sec('Sharing', ...shareRows));
+      const dv = LINKUI.settingsSection(sec, row); if (dv) wrap.append(dv);
     }
     wrap.append(sec('Files',
       c && !SYNC.isPlayer() ? row('Back up', 'One file with everything in this campaign, pictures too.', btn('download', 'Back up…', () => backup(), 'tiny'), btn('upload', 'Restore…', () => restore(), 'tiny ghost')) : null,

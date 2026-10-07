@@ -1,5 +1,12 @@
 # Changelog
 
+## Next (not released yet)
+- Your devices: link a campaign to your phone, tablet or a browser (notes.crittervtt.com), and it stays in step both ways: what you add, change, trash or restore on one, the others do too. On the same Wi-Fi the phone finds the computer by itself; anywhere else it types a 6-letter code. Both screens show the same four digits and the computer approves it.
+- End-to-end encrypted with a key only your devices have: the Homebase carries the campaign but can't read it. Only a small index is watched; a change sends about its own size.
+- A document changed on two devices while they were apart keeps both: the newer one wins, the other waits in the trash as a "conflict copy".
+- Settings › Your devices: which devices are linked and which are here now, a sync check that compares everything, renaming this device, unlinking it, or removing the link everywhere (for a lost device).
+- The trash: deleted documents wait 30 days (the trash button beside Settings), to restore or delete for good; on linked devices too. Undo brings a deleted document back from it.
+
 ## 1.5.2 (2026-10-07)
 - Critter VTT's Homebase has a new address, live.crittervtt.com, and Notes now connects there (the old address keeps working for older versions).
 - The connection to the Homebase sends several changes made at once together, and each one succeeds or fails on its own.
