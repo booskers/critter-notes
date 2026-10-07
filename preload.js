@@ -21,5 +21,12 @@ contextBridge.exposeInMainWorld('desk', {
   onWinState: fn => on('win:state', fn),
   onKey: fn => on('key', fn),
   onCloseAsked: fn => on('close-asked', fn),
-  quitOk: () => ipcRenderer.send('quit-ok')
+  quitOk: () => ipcRenderer.send('quit-ok'),
+  // updates from GitHub: { auto, skip, version, repo, changelog }, the on-start setting, a check now, the GitHub page
+  updates: {
+    get: () => ipcRenderer.invoke('upd:get'),
+    set: auto => ipcRenderer.invoke('upd:set', { auto: !!auto }),
+    check: () => ipcRenderer.invoke('upd:check'),
+    github: () => ipcRenderer.invoke('upd:github')
+  }
 });

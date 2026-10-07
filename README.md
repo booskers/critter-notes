@@ -3,7 +3,7 @@
 A notebook for game masters: plan sessions, write the world, draw maps, boards and mind maps, and send it all to a Critter table.
 It is the third app beside **Critter** (the table) and **Critter Sounds** (the music), and talks to both through the same Homebase.
 
-This repository is private. © Polychrome, all rights reserved.
+Made with love by booskers / Polychrome. MIT License, see [LICENSE](LICENSE). What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
 ## Running and building
 
@@ -95,6 +95,15 @@ had to change; Notes writes what Critter already reads (`src/table.js`):
 `critboard-desktop/music/src/notes-bridge.js` (in the Critter Sounds repository) publishes `lobbies/<code>/soundcat/main`
 and plays cues from `lobbies/<code>/cues/<id>` `{ op, kind, ref, name, ts, sig }`, where `sig` is SHA-256 of
 `<music key>|<id>|<op>|<kind>|<ref>`. Cues without the key are ignored.
+
+## Updates
+
+The app updates itself from this repository's releases (`updater.js`, electron-updater). Settings › Updates turns the check
+when Notes starts on or off; Settings › Help and the logo menu have **Check for updates**. The pop-up lists up to five changes
+(the release notes' list, or this version's section of `CHANGELOG.md`), with **Update now**, **Later** and **Skip this version**,
+then shows the download and hands over to the installer, which shows its progress and opens Notes again.
+A release needs `Critter-Notes-Setup.exe`, its `.blockmap` and `latest.yml` from `dist/` (`npm run dist` makes all three).
+Testing: `UPDATE_TEST_FEED=<url of a folder with latest.yml>` and `UPDATE_TEST_VERSION=<x.y.z>`.
 
 ## Accessibility
 

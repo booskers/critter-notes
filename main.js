@@ -14,6 +14,9 @@ protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: t
 // CBN_USERDATA=<folder>: keep settings elsewhere; CBN_VAULT=<folder>: keep campaigns elsewhere (both for testing)
 if (process.env.CBN_USERDATA) app.setPath('userData', process.env.CBN_USERDATA);
 let win = null;
+// updates from the GitHub releases (updater.js); Notes writes its last changes before the installer takes over
+const updates = require('./updater')({ owner: 'booskers', repo: 'critter-notes', name: 'Critter Notes', parent: () => win, page: () => win && win.webContents,
+  beforeInstall: () => new Promise(res => { if (!win || win.isDestroyed()) return res(); win.once('closed', res); win.close(); }) });
 
 /* ---------- settings and the campaigns folder ---------- */
 const SETTINGS = () => path.join(app.getPath('userData'), 'notes-settings.json');
@@ -139,6 +142,7 @@ function appMenu() {
     { label: 'Homebase…', click: () => wc && wc.executeJavaScript('window.CRITBOARD_DESKTOP && window.CRITBOARD_DESKTOP.changeHomebase()') },
     { label: 'Keyboard shortcuts', click: send('shortcuts') },
     { label: 'About Critter Notes', click: send('about') },
+    ...updates.menuItems(),
     { type: 'separator' },
     { label: 'View', submenu: [
       { label: 'Reload', accelerator: 'CmdOrCtrl+R', click: () => wc && wc.reload() },
@@ -249,5 +253,5 @@ ipcMain.handle('file:open', async () => {
 });
 ipcMain.handle('open-external', (e, url) => { if (/^https?:\/\//i.test(url)) shell.openExternal(url); return true; });
 
-app.whenReady().then(() => { Menu.setApplicationMenu(null); createWindow(); });
+app.whenReady().then(() => { Menu.setApplicationMenu(null); createWindow(); updates.onStart(); });
 app.on('window-all-closed', () => app.quit());

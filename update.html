@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Updates</title>
+<style>
+/* the update pop-up, in the Critter look: the app's highlight colour, light or dark like the app, flat 8px buttons */
+:root{--accent:#ff5c00;--on-accent:#111;--bg:#16171b;--ink:#ecebe8;--ink-2:#b9b8b4;--ink-3:#8d8c88;--hover:rgb(255 255 255/.07);--hover-2:rgb(255 255 255/.11);--track:rgb(255 255 255/.09);color-scheme:dark}
+:root[data-theme=light]{--bg:#f4f3f1;--ink:#1d1c1a;--ink-2:#4a4945;--ink-3:#5f5e5a;--hover:rgb(0 0 0/.06);--hover-2:rgb(0 0 0/.1);--track:rgb(0 0 0/.08);color-scheme:light}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 "Atkinson Hyperlegible Next","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;overflow:hidden;user-select:none}
+body{background:radial-gradient(420px 200px at 100% -10%,color-mix(in oklab,var(--accent) 16%,transparent),transparent 70%),var(--bg)}
+#box{padding:0 22px 20px}
+header{display:flex;align-items:center;gap:10px;height:44px;-webkit-app-region:drag}
+header .nm{flex:1;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+.x{-webkit-app-region:no-drag;width:30px;height:30px;border:0;border-radius:8px;background:none;color:var(--ink-2);display:grid;place-items:center;cursor:pointer}
+.x:hover{background:var(--hover);color:var(--ink)}
+.x[hidden]{display:none}
+.x svg{width:11px;height:11px;stroke:currentColor;stroke-width:1.4}
+h1{margin:2px 0 4px;font-size:21px;line-height:1.2;font-weight:750}
+.sub{margin:0 0 14px;color:var(--ink-2)}
+ul{margin:0 0 12px;padding:0;list-style:none;display:grid;gap:7px}
+li{position:relative;padding-left:18px;color:var(--ink)}
+li::before{content:"";position:absolute;left:3px;top:.62em;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.link{border:0;background:none;padding:0;color:color-mix(in oklab,var(--accent) 60%,var(--ink));font:inherit;font-weight:650;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.link:hover{color:var(--ink)}
+.row{display:flex;align-items:center;gap:8px;margin-top:18px}
+.row .grow{flex:1}
+.btn{border:0;border-radius:8px;padding:8px 14px;background:var(--hover-2);color:var(--ink);font:inherit;font-weight:650;cursor:pointer;white-space:nowrap}
+.btn:hover{background:color-mix(in srgb,var(--ink) 15%,transparent)}
+.btn.ghost{background:none;color:var(--ink-2)}.btn.ghost:hover{background:var(--hover);color:var(--ink)}
+.btn.primary{background:var(--accent);color:var(--on-accent);box-shadow:inset 0 1px 0 rgb(255 255 255/.22);transition:filter .12s}
+.btn.primary:hover{filter:brightness(1.07)}.btn.primary:active{filter:brightness(.94)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.steps{display:grid;gap:12px;margin:6px 0 4px}
+.step{display:grid;gap:6px}
+.step .lbl{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--ink-2)}
+.step .lbl b{color:var(--ink);font-weight:650}
+.step.wait .lbl b{color:var(--ink-3)}
+.bar{height:8px;border-radius:99px;background:var(--track);overflow:hidden;position:relative}
+.bar>i{position:absolute;inset:0 auto 0 0;width:0;border-radius:inherit;background:var(--accent);transition:width .25s ease}
+.bar.indet>i{width:34%;animation:slide 1.2s ease-in-out infinite}
+@keyframes slide{from{left:-34%}to{left:100%}}
+.note{margin:10px 0 0;font-size:12.5px;color:var(--ink-3)}
+.err{color:#ff8b7f}:root[data-theme=light] .err{color:#a3231a}
+@media (prefers-reduced-motion:reduce){.bar.indet>i{animation:none;width:100%;opacity:.45}.bar>i{transition:none}}
+</style>
+</head>
+<body>
+<div id="box" role="dialog" aria-modal="true" aria-labelledby="t" aria-describedby="s">
+  <header><span class="nm" id="nm"></span><button class="x" id="x" type="button" title="Close" aria-label="Close"><svg viewBox="0 0 10 10"><path d="M.5.5l9 9M9.5.5l-9 9"/></svg></button></header>
+  <div id="c" aria-live="polite"></div>
+</div>
+<script>
+const q = new URLSearchParams(location.search), name = q.get('name') || 'Critter', $ = s => document.querySelector(s);
+const root = document.documentElement, accent = /^#[0-9a-f]{6}$/i.test(q.get('accent') || '') ? q.get('accent') : (q.get('accent') || '#ff5c00');
+root.style.setProperty('--accent', accent);
+root.dataset.theme = q.get('scheme') === 'light' ? 'light' : 'dark';
+// black or white on the highlight, whichever reads better
+(() => { const m = /^#(..)(..)(..)$/.exec(accent); if (!m) return; const l = [1, 2, 3].map(i => { const c = parseInt(m[i], 16) / 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; }); const L = .2126 * l[0] + .7152 * l[1] + .0722 * l[2]; root.style.setProperty('--on-accent', L > .2 ? '#111' : '#fff'); })();
+// German for Critter Sounds (the apps' other language); everything else reads English
+const DE = q.get('lang') === 'de', T = (en, de) => DE ? de : en;
+document.documentElement.lang = DE ? 'de' : 'en';
+$('#nm').textContent = T(name + ' updates', name + ': Aktualisierungen');
+let st = { step: 'idle' };
+const el = (tag, attrs, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs || {})) { if (k === 'text') e.textContent = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); } for (const k of kids) if (k) e.append(k); return e; };
+const btn = (text, act, cls = '') => el('button', { type: 'button', class: 'btn ' + cls, text, onclick: () => upd.act(act) });
+const mb = n => (n / 1048576).toFixed(n > 104857600 ? 0 : 1);
+const bar = (pct, indet, label) => { const b = el('div', { class: 'bar' + (indet ? ' indet' : ''), role: 'progressbar', 'aria-label': label, 'aria-valuemin': '0', 'aria-valuemax': '100' }, el('i')); if (!indet) { b.setAttribute('aria-valuenow', String(Math.round(pct))); b.firstChild.style.width = Math.max(0, Math.min(100, pct)) + '%'; } return b; };
+const prog = s => s.total ? `${mb(s.done)} ${T('of', 'von')} ${mb(s.total)} MB${s.speed ? ' · ' + mb(s.speed) + ' MB/s' : ''}` : T('Starting…', 'Beginnt…');
+const busy = () => st.step === 'downloading' || st.step === 'installing';
+function draw() {
+  const c = $('#c'), s = st, kids = [];
+  $('#x').hidden = busy();
+  if (s.step === 'checking' || s.step === 'idle') {
+    kids.push(el('h1', { id: 't', text: T('Looking for updates…', 'Suche nach Aktualisierungen…') }), el('p', { class: 'sub', id: 's', text: T('Asking GitHub for the newest version of ' + name + '.', 'GitHub wird nach der neuesten Version von ' + name + ' gefragt.') }), bar(0, true, T('Looking for updates', 'Suche nach Aktualisierungen')));
+  } else if (s.step === 'current') {
+    kids.push(el('h1', { id: 't', text: T('You\'re up to date', 'Alles aktuell') }), el('p', { class: 'sub', id: 's', text: T(name + ' ' + s.version + ' is the newest version.', name + ' ' + s.version + ' ist die neueste Version.') }),
+      el('div', { class: 'row' }, el('button', { type: 'button', class: 'link', text: T('See what\'s new in the changelog', 'Was neu ist, steht im Änderungsprotokoll'), onclick: () => upd.act('changelog') }), el('span', { class: 'grow' }), btn(T('Close', 'Schließen'), 'close', 'primary')));
+  } else if (s.step === 'available') {
+    kids.push(el('h1', { id: 't', text: T(name + ' ' + s.version + ' is ready', name + ' ' + s.version + ' ist da') }),
+      el('p', { class: 'sub', id: 's', text: T('You have ' + s.from + '. ', 'Du hast ' + s.from + '. ') + (s.notes && s.notes.length ? T('What\'s new:', 'Das ist neu:') : '') }));
+    if (s.notes && s.notes.length) kids.push(el('ul', {}, ...s.notes.map(n => el('li', { text: n }))));
+    kids.push(el('button', { type: 'button', class: 'link', text: T('Read the full changelog', 'Das ganze Änderungsprotokoll lesen'), onclick: () => upd.act('changelog') }),
+      el('div', { class: 'row' }, btn(T('Skip this version', 'Diese Version überspringen'), 'skip', 'ghost'), el('span', { class: 'grow' }), btn(T('Later', 'Später'), 'later'), btn(T('Update now', 'Jetzt aktualisieren'), 'update', 'primary')));
+  } else if (s.step === 'downloading' || s.step === 'installing') {
+    const inst = s.step === 'installing', pct = inst ? 100 : (s.percent || 0);
+    const dl = inst ? T('Done', 'Fertig') : prog(s);
+    kids.push(el('h1', { id: 't', text: inst ? T('Installing ', 'Installiere ') + name + ' ' + (s.version || '') : T('Downloading ', 'Lade ') + name + ' ' + (s.version || '') + T('', ' herunter') }),
+      el('p', { class: 'sub', id: 's', text: inst ? T(name + ' closes now; the installer shows its progress and opens it again.', name + ' schließt sich jetzt; das Installationsprogramm zeigt seinen Fortschritt und öffnet es wieder.') : T('You can keep working while it downloads.', 'Du kannst weiterarbeiten, während es lädt.') }),
+      el('div', { class: 'steps' },
+        el('div', { class: 'step' }, el('div', { class: 'lbl' }, el('b', { text: T('1  Download', '1  Herunterladen') }), el('span', { text: inst ? '100 %' : Math.round(pct) + ' %  ·  ' + dl })), bar(pct, false, T('Download', 'Herunterladen'))),
+        el('div', { class: 'step' + (inst ? '' : ' wait') }, el('div', { class: 'lbl' }, el('b', { text: T('2  Install', '2  Installieren') }), el('span', { text: inst ? T('Starting the installer…', 'Das Installationsprogramm startet…') : T('Waits for the download', 'Wartet auf den Download') })), bar(0, inst, T('Install', 'Installieren')))));
+  } else if (s.step === 'error') {
+    kids.push(el('h1', { id: 't', text: T('The update didn\'t work', 'Die Aktualisierung hat nicht geklappt') }), el('p', { class: 'sub err', id: 's', text: s.message || T('Something went wrong.', 'Etwas ist schiefgegangen.') }),
+      el('div', { class: 'row' }, btn(T('Open the releases page', 'Versionsseite öffnen'), 'releases', 'ghost'), el('span', { class: 'grow' }), btn(T('Close', 'Schließen'), 'close'), btn(T('Try again', 'Nochmal versuchen'), 'retry', 'primary')));
+  }
+  const had = c.contains(document.activeElement);
+  c.replaceChildren(...kids);
+  requestAnimationFrame(() => {
+    upd.size(document.getElementById('box').scrollHeight);
+    if (!busy() && (!had || !c.contains(document.activeElement))) { const p = c.querySelector('.btn.primary') || c.querySelector('.btn'); if (p) p.focus(); }
+  });
+}
+upd.onState(s => { const step = st.step; st = s; if (step === s.step && s.step === 'downloading') { // only the numbers move: keep focus and avoid a redraw
+    const b = document.querySelector('.step .bar'); if (b) { b.firstChild.style.width = Math.max(0, Math.min(100, s.percent || 0)) + '%'; b.setAttribute('aria-valuenow', String(Math.round(s.percent || 0))); const sp = document.querySelector('.step .lbl span'); if (sp) sp.textContent = Math.round(s.percent || 0) + ' %  ·  ' + prog(s); return; } }
+  draw(); });
+$('#x').onclick = () => upd.act('close');
+$('#x').title = T('Close', 'Schließen'); $('#x').setAttribute('aria-label', T('Close', 'Schließen'));
+addEventListener('keydown', e => { if (e.key === 'Escape' && !busy()) upd.act(st.step === 'available' ? 'later' : 'close'); });
+draw();
+</script>
+</body>
+</html>

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0 (2026-10-07)
+- Updates inside the app: Notes checks GitHub when it starts (Settings › Updates turns that off), shows the most important changes, and updates with one click.
+- Update now, Later, or Skip this version, with a progress bar for the download and then the installer's own; Notes opens again by itself.
+- Check for updates in Settings › Updates, Settings › Help, the About box and the logo menu.
+- A GitHub button in Settings, About and the logo menu.
+- Critter Notes is open source now: MIT License, made with love by booskers / Polychrome.
+
 ## 1.2.1 (2026-10-07)
 - One flat button style shared with Critter VTT and Critter Sounds: 8px corners, no outlines, gradients or lift.
   The main action and anything switched on are filled with your highlight colour; the open tab takes the hover tone. Your colours are unchanged.

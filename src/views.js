@@ -103,7 +103,18 @@ const VIEWS = (() => {
       c && !SYNC.isPlayer() ? row('Back up', 'One file with everything in this campaign, pictures too.', btn('download', 'Back up…', () => backup(), 'tiny'), btn('upload', 'Restore…', () => restore(), 'tiny ghost')) : null,
       c && !SYNC.isPlayer() ? row('Markdown', 'Bring notes in from Obsidian or another app, or take a copy out.', btn('upload', 'Import files…', () => PLAN.importMd(false), 'tiny'), btn('folder', 'Import a folder…', () => PLAN.importMd(true), 'tiny ghost'), STORE.kind === 'files' ? btn('download', 'Export…', () => exportMd(), 'tiny ghost') : null) : null,
       STORE.kind === 'files' ? row('Where campaigns are kept', '', btn('folder', 'Open the folder', () => STORE.openFolder(c ? c.id : undefined), 'tiny'), btn(null, 'Choose another…', () => vaultDialog(), 'tiny ghost')) : null));
-    wrap.append(sec('Help', row('Keyboard and writing', 'Every shortcut, and what the boxes and links in a document are.', btn('help', 'Show them', () => shortcuts(), 'tiny')), row('About Critter Notes', '', btn(null, 'About', () => about(), 'tiny ghost'))));
+    // updates come from the GitHub releases (only in the desktop app)
+    const U = window.desk && window.desk.updates;
+    if (U) {
+      const ver = h('span', { text: 'Looking up the version…' }), auto = sw(true, on => U.set(on), 'Check for updates when Notes starts');
+      U.get().then(u => { ver.textContent = 'This is Critter Notes ' + u.version + '. New versions come from GitHub, with a list of what changed.'; auto.querySelector('input').checked = u.auto; }).catch(() => {});
+      wrap.append(sec('Updates',
+        row('Check when Notes starts', 'A quiet look a few seconds after starting; it only speaks up when there is something new.', auto),
+        h('div', { class: 'setrow' }, h('div', { class: 'sl' }, h('b', { text: 'Updates' }), ver), h('div', { class: 'sc' }, btn('refresh', 'Check for updates', () => U.check(), 'tiny'), btn('github', 'GitHub', () => U.github(), 'tiny ghost')))));
+    }
+    wrap.append(sec('Help', row('Keyboard and writing', 'Every shortcut, and what the boxes and links in a document are.', btn('help', 'Show them', () => shortcuts(), 'tiny')),
+      U ? row('Updates', 'See whether a newer Critter Notes is out.', btn('refresh', 'Check for updates', () => U.check(), 'tiny')) : null,
+      row('About Critter Notes', 'Made with love by booskers / Polychrome.', U ? btn('github', 'GitHub', () => U.github(), 'tiny ghost') : null, btn(null, 'About', () => about(), 'tiny ghost'))));
     if (c && !SYNC.isPlayer()) wrap.append(sec('This campaign, for good', row('Delete this campaign', STORE.kind === 'files' ? 'Its folder goes to the recycle bin.' : 'It is deleted from this browser.', btn('trash', 'Delete…', () => deleteCampaign(), 'tiny ghost bad'))));
     main.append(wrap);
   }
@@ -571,7 +582,8 @@ ${critterText(d, true)}`) },
       { label: 'Import Markdown files…', icon: 'upload', disabled: !A.camp, fn: () => PLAN.importMd(false) }, { label: 'Import a folder…', icon: 'folder', disabled: !A.camp, fn: () => PLAN.importMd(true) },
       { label: 'Back up this campaign…', icon: 'download', disabled: !A.camp, fn: () => backup() }, { label: 'Restore a backup…', icon: 'upload', fn: () => restore() }, '-',
       { label: 'Appearance…', icon: 'moon', fn: () => appearance() },
-      { label: 'Homebase…', icon: 'globe', fn: () => window.CRITBOARD_DESKTOP && window.CRITBOARD_DESKTOP.changeHomebase() }, { label: 'Keyboard shortcuts', icon: 'help', fn: () => shortcuts() }, { label: 'About Critter Notes', icon: 'note', fn: () => about() }], at);
+      { label: 'Homebase…', icon: 'globe', fn: () => window.CRITBOARD_DESKTOP && window.CRITBOARD_DESKTOP.changeHomebase() }, { label: 'Keyboard shortcuts', icon: 'help', fn: () => shortcuts() }, { label: 'About Critter Notes', icon: 'note', fn: () => about() },
+      ...(window.desk && window.desk.updates ? ['-', { label: 'Check for updates…', icon: 'refresh', fn: () => window.desk.updates.check() }, { label: 'Critter Notes on GitHub', icon: 'github', fn: () => window.desk.updates.github() }] : [])], at);
   }
   async function vaultDialog() {
     const v = await STORE.vault();
@@ -602,7 +614,11 @@ ${critterText(d, true)}`) },
   }
   async function about() {
     const ix = await SRD.index(); const credits = Object.entries(ix.systems || {}).map(([k, v]) => h('p', { class: 'hint', text: `${SRD.SYSTEMS[k] || k}: ${v.credit || ''}` }));
-    modal('About Critter Notes', h('div', {}, h('p', { text: 'Critter Notes 1.0: a notebook for game masters, made to work with Critter VTT and Critter Sounds.' }), h('h4', { text: 'SRD content' }), ...credits), null, { wide: true });
+    const U = window.desk && window.desk.updates, u = U ? await U.get().catch(() => null) : null;
+    modal('About Critter Notes', h('div', {}, h('p', { text: `Critter Notes${u ? ' ' + u.version : ''}: a notebook for game masters, made to work with Critter VTT and Critter Sounds.` }),
+      h('p', { class: 'hint', text: 'Made with love by booskers / Polychrome. MIT License.' }),
+      h('div', { class: 'row' }, btn('github', 'Critter Notes on GitHub', () => U ? U.github() : window.open('https://github.com/booskers/critter-notes'), 'tiny'), U ? btn('refresh', 'Check for updates', () => U.check(), 'tiny ghost') : null),
+      h('h4', { text: 'SRD content' }), ...credits), null, { wide: true });
   }
 
   /* ============================== the sample campaign ============================== */
