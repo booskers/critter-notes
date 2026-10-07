@@ -33,7 +33,7 @@ Test settings: `CBN_VAULT=<folder>` keeps campaigns elsewhere, `CBN_USERDATA=<fo
 
 ## Where campaigns live
 
-`Documents\Critter Notes\<campaign>\` (the folder can be changed from the menu):
+`Documents\CritterNotes\<campaign>\` (the folder can be changed from the menu; campaigns in the old `Documents\Critter Notes` move there once):
 - `campaign.json`: name, game, colour, linked table, calendar, campaign clocks, shared world.
 - `docs\<id>.json`: one file per document `{ id, type, title, parent, order, body, fields, tags, img, rels, map, board, … }`. `body` is Markdown.
 - `images\<sha1>.<ext>`: pictures, named by their content.

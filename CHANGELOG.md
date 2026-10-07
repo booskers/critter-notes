@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.1 (2026-10-07)
+- Campaigns are kept in Documents\CritterNotes now (next to Documents\CritterVTT).
+- Campaigns in the old Documents\Critter Notes folder move there by themselves the first time Notes starts; a folder you chose yourself stays where it is.
+
 ## 1.3.0 (2026-10-07)
 - Updates inside the app: Notes checks GitHub when it starts (Settings › Updates turns that off), shows the most important changes, and updates with one click.
 - Update now, Later, or Skip this version, with a progress bar for the download and then the installer's own; Notes opens again by itself.

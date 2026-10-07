@@ -13,6 +13,8 @@ const ICON = path.join(__dirname, 'assets', 'icon.png');
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }]);
 // CBN_USERDATA=<folder>: keep settings elsewhere; CBN_VAULT=<folder>: keep campaigns elsewhere (both for testing)
 if (process.env.CBN_USERDATA) app.setPath('userData', process.env.CBN_USERDATA);
+// CBN_DOCUMENTS=<folder>: pretend this is the Documents folder (for testing the campaigns folder's move)
+if (process.env.CBN_DOCUMENTS) app.setPath('documents', process.env.CBN_DOCUMENTS);
 let win = null;
 // updates from the GitHub releases (updater.js); Notes writes its last changes before the installer takes over
 const updates = require('./updater')({ owner: 'booskers', repo: 'critter-notes', name: 'Critter Notes', parent: () => win, page: () => win && win.webContents,
@@ -23,7 +25,29 @@ const SETTINGS = () => path.join(app.getPath('userData'), 'notes-settings.json')
 let settings = {};
 try { settings = JSON.parse(fs.readFileSync(SETTINGS(), 'utf8')); } catch {}
 const saveSettings = () => fsp.writeFile(SETTINGS(), JSON.stringify(settings, null, 2)).catch(() => {});
-const vault = () => process.env.CBN_VAULT || settings.vault || path.join(app.getPath('documents'), 'Critter Notes');
+// campaigns live in Documents\CritterNotes unless the GM picked another folder; campaigns kept in the old default
+// (Documents\Critter Notes) move there once, the first time Notes starts after the change
+const defaultVault = () => path.join(app.getPath('documents'), 'CritterNotes');
+const oldVault = () => path.join(app.getPath('documents'), 'Critter Notes');
+let vaultMoved = false;
+function moveOldVault() {
+  vaultMoved = true;
+  if (process.env.CBN_VAULT) return;
+  if (settings.vault && path.resolve(settings.vault) === path.resolve(oldVault())) { delete settings.vault; saveSettings(); }
+  if (settings.vault) return;
+  const from = oldVault(), to = defaultVault();
+  try {
+    if (!fs.existsSync(from)) return;
+    if (!fs.existsSync(to)) { fs.renameSync(from, to); return; }
+    // both exist: bring over each campaign folder the new one doesn't have yet
+    for (const d of fs.readdirSync(from, { withFileTypes: true })) {
+      const src = path.join(from, d.name), dst = path.join(to, d.name);
+      if (!fs.existsSync(dst)) { try { fs.renameSync(src, dst); } catch { fs.cpSync(src, dst, { recursive: true }); } }
+    }
+    try { fs.rmdirSync(from); } catch {}
+  } catch (e) { console.warn('moving the campaigns folder', e); }
+}
+const vault = () => { if (!vaultMoved) moveOldVault(); return process.env.CBN_VAULT || settings.vault || defaultVault(); };
 const ID = /^[\w-]{1,40}$/, FILE = /^[\w.-]{1,90}$/;
 const IMG_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml', avif: 'image/avif' };
 
