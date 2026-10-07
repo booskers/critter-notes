@@ -127,7 +127,8 @@ const MIND = (() => {
 })();
 
 const GRAPH = (() => {
-  // nodes: [{ id, title, type, color }], edges: [[a, b]]; o: { onOpen(id), focus: id, labels }
+  // nodes: [{ id, title, type, color, icon, img }], edges: [[a, b]]; o: { onOpen(id), onMenu(id, event), imageUrl(file), focus: id, labels }
+  // a node shows its picture (ringed in its kind's colour) or its kind's icon
   function render(host, nodes, edges, o = {}) {
     host.replaceChildren(); host.classList.add('graphhost');
     const cv = document.createElement('canvas'); host.append(cv);
@@ -137,15 +138,22 @@ const GRAPH = (() => {
     const byId = new Map(N.map(n => [n.id, n]));
     const E = edges.map(([a, b, l]) => [byId.get(a), byId.get(b), l]).filter(([a, b]) => a && b && a !== b);
     for (const [a, b] of E) { a.deg++; b.deg++; a.nb.add(b); b.nb.add(a); }
-    N.forEach(n => { n.r = 5 + Math.min(10, Math.sqrt(n.deg) * 2.4); });
+    N.forEach(n => {
+      n.r = 10 + Math.min(10, Math.sqrt(n.deg) * 2.4);
+      if (n.icon && typeof ICON_PATHS !== 'undefined' && ICON_PATHS[n.icon]) n.path = new Path2D(ICON_PATHS[n.icon]);
+      if (n.img && o.imageUrl) Promise.resolve(o.imageUrl(n.img)).then(u => { if (!u) return; const im = new Image(); im.onload = () => { n.pic = im; n.r += 3; }; im.src = u; }).catch(() => {});
+    });
     let W = 0, H = 0, view = { k: 1, x: 0, y: 0 }, alpha = 1, hover = null, drag = null, fitted = false;
     const size = () => { const r = host.getBoundingClientRect(); W = r.width; H = r.height; cv.width = W * dpr; cv.height = H * dpr; cv.style.width = W + 'px'; cv.style.height = H + 'px'; if (!fitted) view = { k: 1, x: W / 2, y: H / 2 }; };
     const ro = new ResizeObserver(() => { size(); draw(); }); ro.observe(host); size();
     function tick() {
-      const n = N.length, rep = o.len ? 6000 : 2600, spring = 0.02, len = o.len || 90;
-      for (let i = 0; i < n; i++) { const a = N[i]; for (let j = i + 1; j < n; j++) { const b = N[j]; let dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy || 0.01; if (d2 > 250000) continue; const f = rep / d2, d = Math.sqrt(d2); dx /= d; dy /= d; a.vx += dx * f; a.vy += dy * f; b.vx -= dx * f; b.vy -= dy * f; } }
-      for (const [a, b] of E) { const dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 0.01, f = (d - len) * spring; a.vx += dx / d * f; a.vy += dy / d * f; b.vx -= dx / d * f; b.vy -= dy / d * f; }
-      for (const a of N) { a.vx -= a.x * 0.004; a.vy -= a.y * 0.004; if (a === drag) { a.vx = a.vy = 0; continue; } a.x += Math.max(-30, Math.min(30, a.vx * alpha)); a.y += Math.max(-30, Math.min(30, a.vy * alpha)); a.vx *= 0.55; a.vy *= 0.55; }
+      // relaxed so the web doesn't knot up as it grows: more documents push each other apart harder, links between busy
+      // documents grow longer, nothing overlaps (pictures and labels need room), and the pull to the middle eases off
+      const n = N.length, grow = 1 + n / 60, rep = (o.len ? 6000 : 3200) * grow, spring = 0.02, len = o.len || 100, reach = 250000 * grow * grow;
+      for (let i = 0; i < n; i++) { const a = N[i]; for (let j = i + 1; j < n; j++) { const b = N[j]; let dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy || 0.01; if (d2 > reach) continue; const d = Math.sqrt(d2); let f = rep / d2; const room = a.r + b.r + 26; if (d < room) f += (room - d) * 0.6; dx /= d; dy /= d; a.vx += dx * f; a.vy += dy * f; b.vx -= dx * f; b.vy -= dy * f; } }
+      for (const [a, b] of E) { const L = len + 12 * Math.sqrt(a.deg + b.deg), dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 0.01, f = (d - L) * spring; a.vx += dx / d * f; a.vy += dy / d * f; b.vx -= dx / d * f; b.vy -= dy / d * f; }
+      const pull = 0.004 / grow;
+      for (const a of N) { a.vx -= a.x * pull; a.vy -= a.y * pull; if (a === drag) { a.vx = a.vy = 0; continue; } a.x += Math.max(-30, Math.min(30, a.vx * alpha)); a.y += Math.max(-30, Math.min(30, a.vy * alpha)); a.vx *= 0.55; a.vy *= 0.55; }
       alpha = Math.max(0, alpha * 0.985 - 0.0005);
     }
     const css = v => getComputedStyle(host).getPropertyValue(v).trim();
@@ -161,11 +169,22 @@ const GRAPH = (() => {
         if (o.directed) { const ang = Math.atan2(b.y - a.y, b.x - a.x), tx = b.x - Math.cos(ang) * (b.r + 3), ty = b.y - Math.sin(ang) * (b.r + 3), s = 7 / view.k; g.beginPath(); g.moveTo(tx, ty); g.lineTo(tx - Math.cos(ang - 0.4) * s, ty - Math.sin(ang - 0.4) * s); g.lineTo(tx - Math.cos(ang + 0.4) * s, ty - Math.sin(ang + 0.4) * s); g.closePath(); g.fill(); }
         if (l && (view.k > 0.55 || on)) { const two = both.has(b.id + '>' + a.id), len = Math.hypot(b.x - a.x, b.y - a.y) || 1, off = two ? 9 / view.k : 0, nx = -(b.y - a.y) / len * off, ny = (b.x - a.x) / len * off; g.font = `500 ${11 / Math.max(0.6, Math.min(1.4, view.k))}px "Segoe UI Variable Text","Segoe UI",system-ui`; g.fillStyle = on ? css('--ink') : css('--muted'); g.textAlign = 'center'; const t = two ? 0.36 : 0.5; g.fillText(l, a.x + (b.x - a.x) * t + nx, a.y + (b.y - a.y) * t + ny - 4 / view.k); }
       }
-      const ink = css('--ink') || '#ddd', muted = css('--muted') || '#999';
+      const ink = css('--ink') || '#ddd', muted = css('--muted') || '#999', surf = css('--surface-2') || css('--panel2') || '#1d1e23';
       for (const a of N) {
         g.globalAlpha = lit && !lit.has(a) ? 0.25 : 1;
-        g.fillStyle = a.color; g.beginPath(); g.arc(a.x, a.y, a.r, 0, Math.PI * 2); g.fill();
-        if (a.id === o.focus || a === hover) { g.lineWidth = 2.5 / view.k; g.strokeStyle = ink; g.stroke(); }
+        g.beginPath(); g.arc(a.x, a.y, a.r, 0, Math.PI * 2);
+        if (a.pic) {
+          // the picture, cut to a circle and ringed in the kind's colour
+          g.save(); g.clip(); const s = a.r * 2, iw = a.pic.naturalWidth, ih = a.pic.naturalHeight, c = Math.min(iw, ih);
+          g.drawImage(a.pic, (iw - c) / 2, (ih - c) / 2, c, c, a.x - a.r, a.y - a.r, s, s); g.restore();
+          g.beginPath(); g.arc(a.x, a.y, a.r, 0, Math.PI * 2); g.lineWidth = 2.5; g.strokeStyle = a.color; g.stroke();
+        } else {
+          // the kind's icon on a dark disc, ringed in its colour
+          g.fillStyle = surf; g.fill(); g.lineWidth = 2; g.strokeStyle = a.color; g.stroke();
+          if (a.path) { const s = a.r * 1.1; g.save(); g.translate(a.x - s / 2, a.y - s / 2); g.scale(s / 24, s / 24); g.lineWidth = 2; g.lineCap = g.lineJoin = 'round'; g.strokeStyle = a.color; g.stroke(a.path); g.restore(); }
+          else { g.fillStyle = a.color; g.beginPath(); g.arc(a.x, a.y, a.r * 0.35, 0, Math.PI * 2); g.fill(); }
+        }
+        if (a.id === o.focus || a === hover) { g.beginPath(); g.arc(a.x, a.y, a.r + 3.5 / view.k, 0, Math.PI * 2); g.lineWidth = 2 / view.k; g.strokeStyle = ink; g.stroke(); }
         const showLabel = view.k > 0.7 || a.deg >= 4 || a === hover || (lit && lit.has(a));
         if (showLabel) { g.font = `${a === hover ? 600 : 500} ${12 / Math.max(0.6, Math.min(1.4, view.k))}px "Segoe UI Variable Text","Segoe UI",system-ui`; g.fillStyle = a === hover ? ink : muted; g.textAlign = 'center'; g.fillText(a.title.length > 34 ? a.title.slice(0, 32) + '…' : a.title, a.x, a.y + a.r + 13 / Math.max(0.6, Math.min(1.4, view.k))); }
       }
@@ -192,6 +211,7 @@ const GRAPH = (() => {
     });
     cv.addEventListener('pointerleave', () => { hover = null; tip.hidden = true; });
     cv.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;   // the right button is for the menu
       const p0 = at(e), n = hit(p0), sx = e.clientX, sy = e.clientY, v0 = { ...view }; let moved = false; touched = true;
       cv.setPointerCapture(e.pointerId);
       if (n) { drag = n; alpha = Math.max(alpha, 0.3); } else cv.dataset.pan = '1';
@@ -199,6 +219,8 @@ const GRAPH = (() => {
       const up = () => { cv.removeEventListener('pointermove', mv); cv.removeEventListener('pointerup', up); delete cv.dataset.pan; drag = null; if (n && !moved && o.onOpen) o.onOpen(n.id); };
       cv.addEventListener('pointermove', mv); cv.addEventListener('pointerup', up);
     });
+    // right-click on a node: its menu (elsewhere, the page's own)
+    cv.addEventListener('contextmenu', e => { const n = hit(at(e)); if (n && o.onMenu) { e.preventDefault(); o.onMenu(n.id, e); } });
     cv.addEventListener('wheel', e => { e.preventDefault(); touched = true; const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, k2 = Math.max(0.1, Math.min(4, view.k * Math.exp(-e.deltaY * 0.0015))); view = { k: k2, x: mx - (mx - view.x) * (k2 / view.k), y: my - (my - view.y) * (k2 / view.k) }; }, { passive: false });
     return { fit, stop: () => { cancelAnimationFrame(raf); ro.disconnect(); } };
   }

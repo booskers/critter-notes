@@ -246,7 +246,7 @@ function renderSide() {
     const kids = tree && kidsOf(d.id).length, open = !!A.prefs.open[d.id], ro = isRO(d), live = !!d.live;
     const r = h('div', { class: 'trow' + (d.id === cur ? ' on' : '') + (ro ? ' ro' : ''), role: 'treeitem', tabIndex: -1, 'aria-level': depth, 'aria-selected': String(d.id === cur), 'aria-expanded': kids ? String(open) : null,
       draggable: !ro, style: `--d:${depth - 1};--c:${typeColor(d)}`, 'data-id': d.id, title: d.title + (ro ? ` (from ${A.wname}, read only)` : ''),
-      onclick: () => openDoc(d.id), oncontextmenu: e => { e.preventDefault(); if (!ro) docMenu(d, e.clientX, e.clientY); } },
+      'data-doc': d.id, onclick: () => openDoc(d.id), oncontextmenu: e => { e.preventDefault(); if (!ro) docMenu(d, e.clientX, e.clientY); } },
       tree ? h('span', { class: 'tcar2' + (kids ? '' : ' none') + (open ? ' open' : ''), html: icon('right'), 'aria-hidden': 'true', onclick: e => { e.stopPropagation(); if (!kids) return; A.prefs.open[d.id] = !open; savePrefs(); renderSide(); } }) : null,
       h('span', { class: 'ti', html: icon(TYPES[d.type].icon), 'aria-hidden': 'true' }), h('span', { class: 'tt', text: d.title }),
       live ? h('span', { class: 'tlive', html: icon('eye'), title: 'The players see this', 'aria-label': '(shown to the players)' }) : null,
@@ -337,7 +337,7 @@ function renderDoc(main, d) {
   // the bar: where it is; then the lock, the mind map, sending, and everything else under More
   const lockBtn = !ro && !full ? h('button', { type: 'button', class: 'ib lockb' + (d.locked ? ' on' : ''), 'aria-pressed': String(!!d.locked), title: d.locked ? 'Locked: nothing changes by accident. Click to unlock and write (Ctrl+E)' : 'Unlocked: you can write. Click to lock it (Ctrl+E)', 'aria-label': d.locked ? 'Locked. Unlock to write' : 'Unlocked. Lock it', html: icon(d.locked ? 'lock' : 'unlock'), onclick: () => toggleLock(d) }) : null;
   const bar = h('div', { class: 'docbar', role: 'toolbar', 'aria-label': 'Document' },
-    h('nav', { class: 'crumbs', 'aria-label': 'Where this document is' }, ...crumbs.flatMap(p => [h('button', { type: 'button', class: 'crumb', text: p.title, onclick: () => openDoc(p.id) }), h('span', { class: 'csep', html: icon('right'), 'aria-hidden': 'true' })]),
+    h('nav', { class: 'crumbs', 'aria-label': 'Where this document is' }, ...crumbs.flatMap(p => [h('button', { type: 'button', class: 'crumb', text: p.title, 'data-doc': p.id, onclick: () => openDoc(p.id) }), h('span', { class: 'csep', html: icon('right'), 'aria-hidden': 'true' })]),
       full ? h('span', { class: 'crumb cur', html: icon(TYPES[d.type].icon) }) : h('span', { class: 'crumb cur', text: TYPES[d.type].name + (ro ? ' · ' + A.wname : '') })),
     full ? fullTitle(d, ro) : null,
     h('div', { class: 'grow' }),
@@ -817,6 +817,37 @@ function quickOpen() {
   const m = modal('Find', h('div', { class: 'qbox' }, inp, list), null, { wide: true });
   m.card.classList.add('quick'); draw();
 }
+
+/* ---------- right-click: whatever doesn't do something of its own offers a sensible menu ---------- */
+// a document (a link, a chip, a card, a node): its menu; read-only, just Open
+function docContext(d, e) {
+  if (!d) return; if (e && e.preventDefault) e.preventDefault();
+  if (SYNC.isPlayer() || isRO(d)) menu([{ head: d.title }, { label: 'Open', icon: 'open', fn: () => openDoc(d.id) }], { x: e.clientX, y: e.clientY });
+  else docMenu(d, e.clientX, e.clientY);
+}
+document.addEventListener('contextmenu', e => {
+  if (e.defaultPrevented || !(e.target instanceof Element)) return;
+  const t = e.target;
+  // text fields keep the system's menu (spelling, copy, paste)
+  if (t.closest('input,textarea,select,[contenteditable="true"],.menu,.tourov')) return;
+  const at = { x: e.clientX, y: e.clientY }, sel = String(getSelection() || '').trim();
+  const copy = sel ? [{ label: 'Copy', icon: 'copy', fn: () => navigator.clipboard.writeText(sel).catch(() => {}) }, '-'] : [];
+  const de = t.closest('[data-doc]'); if (de && D(de.dataset.doc)) return docContext(D(de.dataset.doc), e);
+  e.preventDefault();
+  const tag = t.closest('.tag[data-tag]');
+  if (tag) return menu([...copy, { label: 'Everything tagged #' + tag.dataset.tag, icon: 'hash', fn: () => tag.click() }], at);
+  const nb = t.closest('.navb');
+  if (nb) return menu([{ label: 'Open ' + nb.textContent.trim(), icon: 'open', fn: () => nb.click() }], at);
+  if (!A.camp) return menu([...copy, { label: 'Take the tour', icon: 'compass', fn: () => TOUR.ask() }, { label: 'Settings', icon: 'gear', fn: () => go({ k: 'settings' }) }], at);
+  menu([...copy,
+    SYNC.isPlayer() ? null : { label: 'New document…', sub: 'Ctrl+N', icon: 'plus', fn: () => $('#newBtn').click() },
+    { label: 'Find…', sub: 'Ctrl+K', icon: 'search', fn: () => $('#findBtn').click() },
+    '-',
+    { label: 'Back', icon: 'back', disabled: !A.back.length, fn: () => $('#backBtn').click() },
+    { label: 'Home', icon: 'home', fn: () => go({ k: 'home' }) },
+    '-',
+    { label: 'Settings', icon: 'gear', fn: () => go({ k: 'settings' }) }].filter(Boolean), at);
+});
 
 /* ============================== campaigns ============================== */
 async function loadCampaigns() { A.camps = (await STORE.listCampaigns().catch(() => [])).sort((a, b) => (b.updated || 0) - (a.updated || 0)); }

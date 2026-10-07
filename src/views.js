@@ -190,7 +190,7 @@ const VIEWS = (() => {
   }
   const card = (title, body) => h('section', { class: 'hcard' }, h('h2', { text: title }), body);
   const stat = (n, l) => h('div', { class: 'stat' }, h('b', { text: n }), h('span', { text: l }));
-  const docRow = (d, sub) => h('button', { type: 'button', class: 'lrow', onclick: () => openDoc(d.id), style: `--c:${typeColor(d)}` }, h('span', { class: 'li', html: icon(TYPES[d.type].icon) }), h('span', { class: 'lt', text: d.title }), h('span', { class: 'ls', text: sub || '' }));
+  const docRow = (d, sub) => h('button', { type: 'button', class: 'lrow', 'data-doc': d.id, onclick: () => openDoc(d.id), style: `--c:${typeColor(d)}` }, h('span', { class: 'li', html: icon(TYPES[d.type].icon) }), h('span', { class: 'lt', text: d.title }), h('span', { class: 'ls', text: sub || '' }));
 
   /* ============================== the graph ============================== */
   function graph(main) {
@@ -206,9 +206,9 @@ const VIEWS = (() => {
       if (d.parent && ids.has(d.parent)) { const k = [d.id, d.parent].sort().join('|'); if (!seen.has(k)) { seen.add(k); edges.push([d.id, d.parent]); } }
     }
     const linked = new Set(edges.flat());
-    const nodes = docs.filter(d => A.prefs.graphLonely || linked.has(d.id)).map(d => ({ id: d.id, title: d.title, type: d.type, color: typeColor(d) }));
+    const nodes = docs.filter(d => A.prefs.graphLonely || linked.has(d.id)).map(d => ({ id: d.id, title: d.title, type: d.type, color: typeColor(d), icon: TYPES[d.type].icon, img: d.img }));
     if (!nodes.length) { host.append(h('div', { class: 'empty', text: A.docs.size ? 'Nothing links to anything yet. Write [[ in a document to link another one.' : 'Nothing written yet.' })); return; }
-    queueMicrotask(() => GRAPH.render(host, nodes, edges, { onOpen: id => openDoc(id) }));
+    queueMicrotask(() => GRAPH.render(host, nodes, edges, { onOpen: id => openDoc(id), onMenu: (id, e) => docContext(D(id), e), imageUrl: f => STORE.imageUrl(cid(), f) }));
   }
 
   /* ============================== the side panel ============================== */
@@ -241,14 +241,14 @@ const VIEWS = (() => {
     if (!back.length) body.append(h('p', { class: 'hint', text: `Nothing links here yet. Write [[${d.title}]] in another document.` }));
     for (const b of back) {
       const txt = MD.plain(b.body), k = txt.toLowerCase().indexOf(d.title.toLowerCase());
-      body.append(h('button', { type: 'button', class: 'blink', onclick: () => openDoc(b.id) }, h('span', { class: 'blt', style: `--c:${typeColor(b)}` }, h('span', { html: icon(TYPES[b.type].icon) }), h('b', { text: b.title })), k >= 0 ? h('small', { text: (k > 40 ? '…' : '') + txt.slice(Math.max(0, k - 40), k + 90).replace(/\s+/g, ' ') + '…' }) : null));
+      body.append(h('button', { type: 'button', class: 'blink', 'data-doc': b.id, onclick: () => openDoc(b.id) }, h('span', { class: 'blt', style: `--c:${typeColor(b)}` }, h('span', { html: icon(TYPES[b.type].icon) }), h('b', { text: b.title })), k >= 0 ? h('small', { text: (k > 40 ? '…' : '') + txt.slice(Math.max(0, k - 40), k + 90).replace(/\s+/g, ' ') + '…' }) : null));
     }
     const out = [...outLinks(d)].map(D).filter(Boolean);
-    if (out.length) body.append(sec(`Links to (${out.length})`), h('div', { class: 'chips' }, ...out.map(x => h('button', { type: 'button', class: 'mchip', style: `--c:${typeColor(x)}`, onclick: () => openDoc(x.id) }, h('span', { html: icon(TYPES[x.type].icon) }), h('span', { text: x.title })))));
+    if (out.length) body.append(sec(`Links to (${out.length})`), h('div', { class: 'chips' }, ...out.map(x => h('button', { type: 'button', class: 'mchip', style: `--c:${typeColor(x)}`, 'data-doc': x.id, onclick: () => openDoc(x.id) }, h('span', { html: icon(TYPES[x.type].icon) }), h('span', { text: x.title })))));
     const kids = kidsOf(d.id);
-    if (kids.length) body.append(sec(`Inside it (${kids.length})`), h('div', { class: 'chips' }, ...kids.map(x => h('button', { type: 'button', class: 'mchip', style: `--c:${typeColor(x)}`, onclick: () => openDoc(x.id) }, h('span', { html: icon(TYPES[x.type].icon) }), h('span', { text: x.title })))));
+    if (kids.length) body.append(sec(`Inside it (${kids.length})`), h('div', { class: 'chips' }, ...kids.map(x => h('button', { type: 'button', class: 'mchip', style: `--c:${typeColor(x)}`, 'data-doc': x.id, onclick: () => openDoc(x.id) }, h('span', { html: icon(TYPES[x.type].icon) }), h('span', { text: x.title })))));
     const pinsIn = [...A.docs.values()].filter(m => m.map && (m.map.pins || []).some(p => p.doc === d.id));
-    if (pinsIn.length) body.append(sec('On the map'), h('div', { class: 'chips' }, ...pinsIn.map(m => h('button', { type: 'button', class: 'mchip', style: `--c:${typeColor(m)}`, onclick: () => openDoc(m.id) }, h('span', { html: icon('map') }), h('span', { text: m.title })))));
+    if (pinsIn.length) body.append(sec('On the map'), h('div', { class: 'chips' }, ...pinsIn.map(m => h('button', { type: 'button', class: 'mchip', style: `--c:${typeColor(m)}`, 'data-doc': m.id, onclick: () => openDoc(m.id) }, h('span', { html: icon('map') }), h('span', { text: m.title })))));
   }
   const sec = (t, ...extra) => h('div', { class: 'rsec' }, h('span', { class: 'grow', text: t }), ...extra);
 

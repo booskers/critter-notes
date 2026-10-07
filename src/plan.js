@@ -87,10 +87,10 @@ const PLAN = (() => {
     d.rels = Array.isArray(d.rels) ? d.rels : [];
     const list = h('div', { class: 'rels' });
     const draw = () => {
-      list.replaceChildren(...d.rels.map((r, i) => { const t = D(r.to); return h('span', { class: 'relc', style: t ? `--c:${typeColor(t)}` : '' }, h('i', { text: r.label || 'tied to' }), t ? h('button', { type: 'button', class: 'rell', text: t.title, onclick: () => openDoc(t.id) }) : h('s', { text: 'gone' }), ro ? null : ib('x', `Remove: ${r.label} ${t ? t.title : ''}`, () => { d.rels.splice(i, 1); touch(d); draw(); }, 'tiny')); }));
+      list.replaceChildren(...d.rels.map((r, i) => { const t = D(r.to); return h('span', { class: 'relc', style: t ? `--c:${typeColor(t)}` : '' }, h('i', { text: r.label || 'tied to' }), t ? h('button', { type: 'button', class: 'rell', text: t.title, 'data-doc': t.id, onclick: () => openDoc(t.id) }) : h('s', { text: 'gone' }), ro ? null : ib('x', `Remove: ${r.label} ${t ? t.title : ''}`, () => { d.rels.splice(i, 1); touch(d); draw(); }, 'tiny')); }));
       // and what points here from elsewhere
       const inc = [...A.docs.values()].filter(x => x.id !== d.id && (x.rels || []).some(r => r.to === d.id));
-      for (const x of inc) for (const r of x.rels.filter(r => r.to === d.id)) list.append(h('span', { class: 'relc in', style: `--c:${typeColor(x)}` }, h('button', { type: 'button', class: 'rell', text: x.title, onclick: () => openDoc(x.id) }), h('i', { text: r.label || 'tied to' })));
+      for (const x of inc) for (const r of x.rels.filter(r => r.to === d.id)) list.append(h('span', { class: 'relc in', style: `--c:${typeColor(x)}` }, h('button', { type: 'button', class: 'rell', text: x.title, 'data-doc': x.id, onclick: () => openDoc(x.id) }), h('i', { text: r.label || 'tied to' })));
       if (!list.children.length) list.append(h('span', { class: 'hint', text: ro ? 'None.' : 'None yet.' }));
     };
     draw();
@@ -210,7 +210,7 @@ const PLAN = (() => {
         const up = lane % 2 === 0, depth = Math.floor(lane / 2), fut = now && it.n > dayOf(now);
         const txt = MD.plain(it.d.body).replace(/\s+/g, ' ').trim();
         const ro = isRO(it.d);
-        const card = h('button', { type: 'button', class: 'tlcard' + (up ? ' up' : ' down') + (fut ? ' future' : ''), style: `left:${px}px;--lane:${depth};--c:${typeColor(it.d)}`, onclick: () => { if (!card.moved) openDoc(it.d.id); }, title: it.d.title },
+        const card = h('button', { type: 'button', class: 'tlcard' + (up ? ' up' : ' down') + (fut ? ' future' : ''), 'data-doc': it.d.id, style: `left:${px}px;--lane:${depth};--c:${typeColor(it.d)}`, onclick: () => { if (!card.moved) openDoc(it.d.id); }, title: it.d.title },
           ro ? null : h('span', { class: 'tlh l', title: 'Drag to move it to another day', 'aria-hidden': 'true', onpointerdown: e => moveEvent(e, it, card) }),
           ro ? null : h('span', { class: 'tlh r', title: 'Drag to move it to another day', 'aria-hidden': 'true', onpointerdown: e => moveEvent(e, it, card) }),
           h('span', { class: 'tdate', text: wfmt(it.w, true) + (fut ? ' · to come' : '') }), h('span', { class: 'tlt' }, h('span', { class: 'tic', html: icon(TYPES[it.d.type].icon) }), h('b', { text: it.d.title })), txt ? h('small', { text: txt.slice(0, 80) + (txt.length > 80 ? '…' : '') }) : null);
@@ -272,7 +272,7 @@ const PLAN = (() => {
     if (!edges.length) { host.removeAttribute('role'); host.append(h('div', { class: 'emptybox' }, h('span', { html: icon('rels') }), h('p', { text: 'No relationships yet. Open a character, faction or place, and add ties under Details › Relationships: "ally of", "owes", "secretly works for"…' }))); return; }
     const list = h('details', { class: 'rellist' }, h('summary', { text: `All ${plural(edges.length, 'tie')} as a list` }), h('ul', {}, ...edges.map(([a, b, l]) => h('li', {}, h('a', { href: '#', text: D(a).title, onclick: e => { e.preventDefault(); openDoc(a); } }), ` ${l} `, h('a', { href: '#', text: D(b).title, onclick: e => { e.preventDefault(); openDoc(b); } })))));
     main.append(list);
-    queueMicrotask(() => GRAPH.render(host, [...nodes.values()].map(d => ({ id: d.id, title: d.title, type: d.type, color: typeColor(d) })), edges, { onOpen: id => openDoc(id), directed: true, len: 200 }));
+    queueMicrotask(() => GRAPH.render(host, [...nodes.values()].map(d => ({ id: d.id, title: d.title, type: d.type, color: typeColor(d), icon: TYPES[d.type].icon, img: d.img })), edges, { onOpen: id => openDoc(id), onMenu: (id, e) => docContext(D(id), e), imageUrl: f => STORE.imageUrl(cid(), f), directed: true, len: 200 }));
   }
   // clues across the sessions: in which session each was planned, and in which it was found
   function clues() {
@@ -308,14 +308,14 @@ const PLAN = (() => {
       clocks.length ? cbox : h('p', { class: 'hint', text: 'A clock fills as a threat moves forward. Make one here, or give a faction or quest its clock in Details.' })));
     // quests
     const qs = sortedOf('quest'), cols = ['Rumour', 'Active', 'Done', 'Failed'];
-    const qb = h('div', { class: 'qcols' }, ...cols.map(st => { const l = qs.filter(q => ((q.fields || {}).status || 'Rumour') === st || (st === 'Failed' && (q.fields || {}).status === 'Abandoned')); return h('div', { class: 'qcol' }, h('h3', { text: `${st} (${l.length})` }), ...l.map(q => h('button', { type: 'button', class: 'lrow', style: `--c:${typeColor(q)}`, onclick: () => openDoc(q.id) }, h('span', { class: 'li', html: icon('quest') }), h('span', { class: 'lt', text: q.title })))); }));
+    const qb = h('div', { class: 'qcols' }, ...cols.map(st => { const l = qs.filter(q => ((q.fields || {}).status || 'Rumour') === st || (st === 'Failed' && (q.fields || {}).status === 'Abandoned')); return h('div', { class: 'qcol' }, h('h3', { text: `${st} (${l.length})` }), ...l.map(q => h('button', { type: 'button', class: 'lrow', style: `--c:${typeColor(q)}`, 'data-doc': q.id, onclick: () => openDoc(q.id) }, h('span', { class: 'li', html: icon('quest') }), h('span', { class: 'lt', text: q.title })))); }));
     wrap.append(h('section', { class: 'hcard' }, h('div', { class: 'hrow' }, h('h2', { text: `Quests (${qs.length})` }), h('span', { class: 'grow' }), btn('plus', 'New quest', () => create('quest'), 'tiny')), qs.length ? qb : h('p', { class: 'hint', text: 'No quests yet.' })));
     // clues
     const cl = clues(), open = cl.filter(c => !c.found);
     const tbl = h('table', { class: 'cltable' }, h('thead', {}, h('tr', {}, h('th', { scope: 'col', text: 'Clue' }), h('th', { scope: 'col', text: 'Planned in' }), h('th', { scope: 'col', text: 'Found in' }))),
       h('tbody', {}, ...cl.sort((a, b) => (a.found ? 1 : 0) - (b.found ? 1 : 0)).map(c => h('tr', { class: c.found ? 'found' : '' }, h('td', { text: c.text }),
-        h('td', {}, h('button', { type: 'button', class: 'linkish', text: c.planned.title, onclick: () => openDoc(c.planned.id) })),
-        h('td', {}, c.found ? h('button', { type: 'button', class: 'linkish', text: c.found.title, onclick: () => openDoc(c.found.id) }) : h('span', { class: 'hint', text: c.seen.length > 1 ? `Not yet (carried ${c.seen.length - 1}×)` : 'Not yet' }))))));
+        h('td', {}, h('button', { type: 'button', class: 'linkish', text: c.planned.title, 'data-doc': c.planned.id, onclick: () => openDoc(c.planned.id) })),
+        h('td', {}, c.found ? h('button', { type: 'button', class: 'linkish', text: c.found.title, 'data-doc': c.found.id, onclick: () => openDoc(c.found.id) }) : h('span', { class: 'hint', text: c.seen.length > 1 ? `Not yet (carried ${c.seen.length - 1}×)` : 'Not yet' }))))));
     wrap.append(h('section', { class: 'hcard' }, h('h2', { text: `Secrets & clues (${open.length} still to find)` }), cl.length ? h('div', { class: 'tblw' }, tbl) : h('p', { class: 'hint', text: 'Clues are the boxes under a session\'s "Secrets & clues" heading. Tick one when the party finds it.' })));
     main.append(wrap);
   }
