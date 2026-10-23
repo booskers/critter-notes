@@ -1191,3 +1191,8 @@ body.phone .trashrow{flex-wrap:wrap}
 .devrow .dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}
 .devrow.live .dot{background:var(--ok,#3c9)}
 .devrow small{color:var(--faint)}
+
+/* a character's portrait in place of its icon (docIc) */
+img.ic.dav{border-radius:50%;object-fit:cover;flex:none;background:var(--hover)}
+img.ic.dav,.prose img.ic.dav{display:inline-block;margin:0;max-width:none;border-radius:50%;aspect-ratio:1}
+.wl img.ic.dav{width:1.05em;height:1.05em;align-self:center}

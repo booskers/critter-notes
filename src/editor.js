@@ -282,14 +282,33 @@ const ED = (() => {
       if (nb) { const t2 = nb.querySelector('.ctt') || nb; const r = document.createRange(); r.selectNodeContents(t2); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
     }
     // something within the line: at the caret, or at the end of the section
-    function insertInline(md) {
-      if (!caretBlock() && cur) placeEnd(cur);
-      const html = MD.inline(md, ctx(true)) + ' ';
-      root.focus(); document.execCommand('insertHTML', false, html); commit();
+    function insertInline(md, r) {
+      if (!r || !root.contains(r.startContainer)) { if (!caretBlock() && cur) placeEnd(cur); const s = getSelection(); r = s.rangeCount ? s.getRangeAt(0) : null; }
+      if (r) putInline(r, md, true);
+    }
+    // Markdown put in place of a range (a link, dice…), then the caret after it. Done on the page itself rather than
+    // with execCommand, which needs the editor focused: after a picker it isn't, and the link came out as plain words.
+    function putInline(r, md, space) {
+      const t = document.createElement('template'); t.innerHTML = MD.inline(md, ctx(true));
+      const nodes = [...t.content.childNodes]; if (!nodes.length || !root.contains(r.startContainer)) return;
+      r.deleteContents();
+      const frag = document.createDocumentFragment();
+      // added into a line (not over selected words): a space before it when it would touch the word before
+      const blk = top(r.startContainer), pre = document.createRange(); let prev = '';
+      if (blk) { pre.setStart(blk, 0); pre.setEnd(r.startContainer, r.startOffset); prev = pre.toString().slice(-1); }
+      if (space && prev && /[\p{L}\p{N}.,;:!?)]/u.test(prev)) frag.append(document.createTextNode(' '));
+      nodes.forEach(n => frag.append(n));
+      const next = r.endContainer.nodeType === 3 ? r.endContainer.nodeValue[r.endOffset] : '';
+      const sp = space && !/^\s/.test(next || '') ? document.createTextNode(' ') : null; if (sp) frag.append(sp);
+      const last = sp || nodes[nodes.length - 1];
+      r.insertNode(frag);
+      root.focus({ preventScroll: true });
+      const c = document.createRange(); c.setStartAfter(last); c.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(c);
+      root.classList.remove('empty'); bar.hidden = true; commit();
     }
     function pickDocInto() {
-      const s = getSelection(), r = s.rangeCount ? s.getRangeAt(0).cloneRange() : null;
-      pickDoc(r ? r.getBoundingClientRect() : root.getBoundingClientRect(), '', d.id).then(x => { if (!x) return; if (r) { s.removeAllRanges(); s.addRange(r); } insertInline(`[[${x.title}]]`); });
+      const s = getSelection(), r = s.rangeCount && root.contains(s.anchorNode) ? s.getRangeAt(0).cloneRange() : null;
+      pickDoc(r ? r.getBoundingClientRect() : root.getBoundingClientRect(), '', d.id, { from: d }).then(x => { if (x) insertInline(`[[${x.title}]]`, r); });
     }
 
     /* ---------- sections: drag, menu ---------- */
@@ -377,10 +396,9 @@ const ED = (() => {
     function linkSelection() {
       const s = getSelection(); if (!s.rangeCount || s.isCollapsed) { pickDocInto(); return; }
       const r = s.getRangeAt(0).cloneRange(), text = s.toString().trim();
-      pickDoc(r.getBoundingClientRect(), text, d.id).then(x => {
-        if (!x) return; s.removeAllRanges(); s.addRange(r);
-        const md = x.title.toLowerCase() === text.toLowerCase() ? `[[${x.title}]]` : `[[${x.title}|${text}]]`;
-        document.execCommand('insertHTML', false, MD.inline(md, ctx(true))); commit(); bar.hidden = true;
+      pickDoc(r.getBoundingClientRect(), text, d.id, { from: d }).then(x => {
+        if (!x) return;
+        putInline(r, x.title.toLowerCase() === text.toLowerCase() ? `[[${x.title}]]` : `[[${x.title}|${text}]]`, false);
       });
     }
     function unlink(a) { const li = MD.linkInfo(a.dataset.md.replace(/^\[\[|\]\]$/g, '')); a.replaceWith(document.createTextNode(li.label || li.title || li.ref || '')); commit(); }
@@ -389,7 +407,8 @@ const ED = (() => {
     function suggest(b) {
       if (locked || !b || !b.isConnected || A.prefs.suggest === false) { sugg.hidden = true; return; }
       d.noLink = d.noLink || [];
-      const names = [...A.idx.title.entries()].filter(([k, id]) => id !== d.id && k.length >= 3 && !d.noLink.includes(k)).sort((x, y) => y[0].length - x[0].length);
+      const here = linkedHere(d);
+      const names = [...A.idx.title.entries()].filter(([k, id]) => id !== d.id && k.length >= 3 && !d.noLink.includes(k) && !here.has(id)).sort((x, y) => y[0].length - x[0].length);
       const walker = document.createTreeWalker(b, NodeFilter.SHOW_TEXT, { acceptNode: n => (n.parentElement.closest('.atom,code,.ch') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) });
       for (let n = walker.nextNode(); n; n = walker.nextNode()) {
         const low = n.nodeValue.toLowerCase();
@@ -399,7 +418,7 @@ const ED = (() => {
           if (at < 0) continue;
           const r = document.createRange(); r.setStart(n, at); r.setEnd(n, at + k.length);
           const rect = r.getBoundingClientRect(), w = wrap.getBoundingClientRect(), doc = D(id), text = n.nodeValue.slice(at, at + k.length);
-          sugg.replaceChildren(h('span', { html: icon(TYPES[doc.type].icon), style: `color:${typeColor(doc)}` }), h('span', {}, 'Link ', h('b', { text: '“' + text + '”' }), '?'),
+          sugg.replaceChildren(h('span', { html: docIc(doc), style: `color:${typeColor(doc)}` }), h('span', {}, 'Link ', h('b', { text: '“' + text + '”' }), '?'),
             h('button', { type: 'button', class: 'btn tiny primary', text: 'Link', onmousedown: e => e.preventDefault(), onclick: () => { const s = getSelection(), keep = s.rangeCount ? s.getRangeAt(0) : null; r.deleteContents(); const span = document.createElement('span'); span.innerHTML = MD.inline(text === doc.title ? `[[${doc.title}]]` : `[[${doc.title}|${text}]]`, ctx(true)); r.insertNode(span.firstChild); sugg.hidden = true; commit(); if (keep) { s.removeAllRanges(); s.addRange(keep); } } }),
             h('button', { type: 'button', class: 'ib tiny', title: 'Not this one', 'aria-label': `Don't link ${text} here`, html: icon('x'), onmousedown: e => e.preventDefault(), onclick: () => { d.noLink.push(k); touch(d, true); sugg.hidden = true; } }));
           sugg.hidden = false; sugg.style.left = Math.max(0, rect.left - w.left) + 'px'; sugg.style.top = (rect.bottom - w.top + 6) + 'px';
@@ -427,7 +446,7 @@ const ED = (() => {
       if (AC2 !== tok) return;
       tok.items = items; if (!items.length) return closeAC();
       list.replaceChildren(...items.map((it, i) => h('div', { class: 'aci' + (i === 0 ? ' on' : ''), id: 'ac-' + i, role: 'option', 'aria-selected': String(i === 0), onmousedown: e => { e.preventDefault(); pickAC(i); } },
-        h('span', { class: 'aic', html: icon(it.ic), style: it.color ? `color:${it.color}` : '' }), h('span', { class: 'acl', text: it.label }), it.sub ? h('span', { class: 'acs', text: it.sub }) : null)));
+        h('span', { class: 'aic', html: it.html || icon(it.ic), style: it.color ? `color:${it.color}` : '' }), h('span', { class: 'acl', text: it.label }), it.sub ? h('span', { class: 'acs', text: it.sub }) : null)));
       list.hidden = false; root.setAttribute('aria-activedescendant', 'ac-0');
       const r = document.createRange(); r.setStart(node, start); r.setEnd(node, Math.min(node.nodeValue.length, start + 1)); const rc = r.getBoundingClientRect();
       list.style.left = Math.max(8, Math.min(innerWidth - list.offsetWidth - 8, rc.left)) + 'px'; list.style.top = (rc.bottom + list.offsetHeight + 8 < innerHeight ? rc.bottom + 4 : rc.top - list.offsetHeight - 4) + 'px';
@@ -450,9 +469,32 @@ const ED = (() => {
     }
 
     /* ---------- right-click ---------- */
+    // the word under the pointer, and the documents named in it (a whole name, or part of the word, like "Bram" in "Bram's")
+    function wordAt(x, y) {
+      const r = document.caretRangeFromPoint && document.caretRangeFromPoint(x, y); if (!r) return null;
+      const n = r.startContainer; if (n.nodeType !== 3 || !root.contains(n) || n.parentElement.closest('.atom,code,pre,.ch')) return null;
+      const t = n.nodeValue, low = t.toLowerCase(), o = r.startOffset, W = /[\p{L}\p{N}'’-]/u, L = /[\p{L}\p{N}]/u;
+      let ws = o, we = o; while (ws > 0 && W.test(t[ws - 1])) ws--; while (we < t.length && W.test(t[we])) we++;
+      while (ws < we && !L.test(t[ws])) ws++; while (we > ws && !L.test(t[we - 1])) we--;
+      if (we <= ws) return null;
+      const found = new Map();
+      for (const [k, id] of A.idx.title) {
+        if (id === d.id || k.length < 2 || found.has(id)) continue;
+        for (let i = low.indexOf(k); i >= 0; i = low.indexOf(k, i + 1)) {
+          if (i >= we || i + k.length <= ws) continue;
+          const startB = !L.test(t[i - 1] || ' '), endB = !L.test(t[i + k.length] || ' ');
+          // a whole word (or several, for longer names), or the start or end of one when the name has 3 letters or more
+          if ((startB && endB) || ((startB || endB) && k.length >= 3)) { found.set(id, { id, at: i, len: k.length }); break; }
+        }
+      }
+      return { n, ws, we, word: t.slice(ws, we), names: [...found.values()].sort((p, q) => q.len - p.len).slice(0, 4) };
+    }
+    const rangeOf = (n, i, j) => { const r = document.createRange(); r.setStart(n, i); r.setEnd(n, j); return r; };
     root.addEventListener('contextmenu', e => {
       const s = getSelection(), a = e.target.closest('.atom[data-md^="[["]'), b = blockAt(e.target);
-      const hasSel = s.rangeCount && !s.isCollapsed && root.contains(s.anchorNode);
+      const edit = !locked && !isRO(d), hit = !a && edit ? wordAt(e.clientX, e.clientY) : null;
+      // a right-click selects the word under it in some browsers: that's the word, not a selection of the user's
+      const hasSel = !a && s.rangeCount && !s.isCollapsed && root.contains(s.anchorNode) && !(hit && s.toString().trim() === hit.word);
       const items = [];
       if (a) {
         const li = MD.linkInfo(a.dataset.md.slice(2, -2)), tid = li.kind === 'doc' && resolve(li.title);
@@ -465,6 +507,16 @@ const ED = (() => {
         if (!locked && !isRO(d)) { items.push({ label: 'Link to a document…', icon: 'link', fn: () => linkSelection() }, { head: 'Make it' }, ...MAKE.slice(0, 7).map(([k, l, ic]) => ({ label: l, icon: ic, fn: () => makeIt(k) })), '-'); }
         const md = selMd();
         items.push(...sendItems(() => md).map(x => ({ ...x, label: x.label.replace('Send', spans.size > 1 ? `Send ${spans.size} sections` : 'Send') })), { label: 'Copy', icon: 'copy', fn: () => navigator.clipboard.writeText(s.toString()) });
+      } else if (hit) {
+        // the word: link it, or the name in it, without having to select anything
+        const { n, ws, we, word } = hit;
+        items.push({ head: '“' + word + '”' });
+        for (const m of hit.names) {
+          const x = D(m.id), text = n.nodeValue.slice(m.at, m.at + m.len);
+          items.push({ label: `Link “${text}” to ${x.title}`, icon: 'link', color: typeColor(x), fn: () => putInline(rangeOf(n, m.at, m.at + m.len), text === x.title ? `[[${x.title}]]` : `[[${x.title}|${text}]]`, false) });
+        }
+        items.push({ label: hit.names.length ? `Link “${word}” to another document…` : `Link “${word}” to a document…`, icon: 'link', fn: () => { const r = rangeOf(n, ws, we); s.removeAllRanges(); s.addRange(r); linkSelection(); } });
+        if (b) { const md = blockMd(b); items.push('-', ...sendItems(() => md).map(x => ({ ...x, label: x.label.replace('Send', 'Send this section').replace('Whisper it', 'Whisper this section') })), '-', { label: 'Add below…', icon: 'plus', fn: () => { cur = b; placeEnd(b); insertMenu({ x: e.clientX, y: e.clientY }); } }, { label: 'Section menu…', icon: 'dots', fn: () => sectionMenu(b, { x: e.clientX, y: e.clientY }) }); }
       } else if (b) {
         const md = blockMd(b);
         items.push(...sendItems(() => md).map(x => ({ ...x, label: x.label.replace('Send', 'Send this section').replace('Whisper it', 'Whisper this section') })));
@@ -479,12 +531,20 @@ const ED = (() => {
     return { root, setLocked, commit, render, insertBlockMd, dropMd: (md, x, y) => { placeAtPoint(x, y); insertBlockMd(md); }, focus: () => { const b = root.lastElementChild; if (b) placeEnd(b); } };
   }
 
+  // the documents a document links to already
+  function linkedHere(d) { const out = new Set(); for (const m of String(d.body || '').matchAll(/\[\[([^\]]+)\]\]/g)) { const li = MD.linkInfo(m[1]); const id = li.kind === 'doc' && resolve(li.title); if (id) out.add(id); } return out; }
+  // documents for a list: the campaign's first, then the shared world's, each name once
+  function docsFor(q, except) {
+    const ql = String(q || '').toLowerCase().trim(), seen = new Set(), out = [];
+    for (const x of [...A.docs.values(), ...A.wdocs.values()]) { const k = x.title.toLowerCase(); if (x.id === except || seen.has(k) || (ql && !k.includes(ql))) continue; seen.add(k); out.push(x); }
+    return out.sort((a, b) => (a.title.toLowerCase().startsWith(ql) ? 0 : 1) - (b.title.toLowerCase().startsWith(ql) ? 0 : 1) || b.updated - a.updated);
+  }
   // the link suggestions: documents (and the shared world's), the table's Library, Critter Sounds, the SRD
   async function linkItems(d, q) {
     const items = [], ql = q.toLowerCase().trim(), mode = /^(table|srd|sound|roll):/i.exec(q);
     if (!mode) {
-      const docs = [...A.docs.values(), ...A.wdocs.values()].filter(x => x.id !== d.id && (!ql || x.title.toLowerCase().includes(ql))).sort((a, b) => (a.title.toLowerCase().startsWith(ql) ? 0 : 1) - (b.title.toLowerCase().startsWith(ql) ? 0 : 1) || b.updated - a.updated).slice(0, 7);
-      items.push(...docs.map(x => ({ label: x.title, ic: TYPES[x.type].icon, color: typeColor(x), sub: (isRO(x) ? A.wname + ' · ' : '') + TYPES[x.type].name, ins: `[[${x.title}]]` })));
+      const here = linkedHere(d), docs = docsFor(q, d.id).slice(0, 7);
+      items.push(...docs.map(x => ({ label: x.title, html: docIc(x), color: typeColor(x), sub: (isRO(x) ? A.wname + ' · ' : '') + TYPES[x.type].name + (here.has(x.id) ? ' · linked here' : ''), ins: `[[${x.title}]]` })));
       if (ql && !resolve(q)) items.push({ label: `New: ${q.trim()}`, ic: 'plus', sub: 'A document to write later', ins: `[[${q.trim()}]]` });
     }
     const qq = mode ? q.slice(mode[0].length).toLowerCase().trim() : ql;
@@ -504,17 +564,17 @@ const ED = (() => {
       const inp = h('input', { type: 'search', value: q || '', placeholder: o.placeholder || 'Find a document, or name a new one', 'aria-label': 'Find a document' });
       const out = h('div', { class: 'dplist', role: 'listbox', 'aria-label': 'Documents' });
       const box = h('div', { class: 'dpick', role: 'dialog', 'aria-label': o.title || 'Link to a document' }, inp, out);
-      let rows = [], sel = 0, done = false;
+      let rows = [], sel = 0, done = false; const here = o.from ? linkedHere(o.from) : new Set();
       const fin = v => { if (done) return; done = true; box.remove(); document.removeEventListener('pointerdown', away, true); res(v); };
       const away = e => { if (!box.contains(e.target)) fin(null); };
       const draw = () => {
         const v = inp.value.trim(), ql = v.toLowerCase();
-        rows = [...A.docs.values(), ...A.wdocs.values()].filter(x => x.id !== except && (!ql || x.title.toLowerCase().includes(ql))).sort((a, b) => (a.title.toLowerCase().startsWith(ql) ? 0 : 1) - (b.title.toLowerCase().startsWith(ql) ? 0 : 1) || b.updated - a.updated).slice(0, 8).map(x => ({ id: x.id, title: x.title, doc: x }));
+        rows = docsFor(v, except).slice(0, 8).map(x => ({ id: x.id, title: x.title, doc: x }));
         if (v && !resolve(v)) for (const t of o.types || ['character', 'location', 'faction', 'item', 'note']) rows.push({ make: t, title: v });
         sel = Math.min(sel, rows.length - 1);
         out.replaceChildren(...rows.map((r, i) => h('div', { class: 'aci' + (i === sel ? ' on' : ''), role: 'option', 'aria-selected': String(i === sel), onmousedown: ev => { ev.preventDefault(); pick(i); } },
-          h('span', { class: 'aic', html: icon(r.doc ? TYPES[r.doc.type].icon : 'plus'), style: r.doc ? `color:${typeColor(r.doc)}` : '' }),
-          h('span', { class: 'acl', text: r.doc ? r.title : `New ${TYPES[r.make].name.toLowerCase()}: ${r.title}` }), r.doc ? h('span', { class: 'acs', text: TYPES[r.doc.type].name }) : null)));
+          h('span', { class: 'aic', html: r.doc ? docIc(r.doc) : icon('plus'), style: r.doc ? `color:${typeColor(r.doc)}` : '' }),
+          h('span', { class: 'acl', text: r.doc ? r.title : `New ${TYPES[r.make].name.toLowerCase()}: ${r.title}` }), r.doc ? h('span', { class: 'acs', text: TYPES[r.doc.type].name + (here.has(r.id) ? ' · linked here' : '') }) : null)));
         if (!rows.length) out.append(h('p', { class: 'hint', text: 'Type a name.' }));
       };
       const pick = i => { const r = rows[i]; if (!r) return; if (r.make) { const x = newDoc({ type: r.make, title: r.title }); renderSide(); fin({ id: x.id, title: x.title, made: true }); } else fin({ id: r.id, title: r.title }); };

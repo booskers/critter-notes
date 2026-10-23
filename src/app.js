@@ -166,6 +166,8 @@ function outLinks(d) {
 const docTags = d => [...new Set([...MD.tags(d.body), ...(d.tags || []).map(t => String(t).toLowerCase())])];
 const kidsOf = id => [...A.docs.values()].filter(d => (d.parent || '') === (id || '')).sort((a, b) => (a.order ?? a.created) - (b.order ?? b.created));
 const typeColor = d => (TYPES[d.type] || TYPES.note).color;
+// a document's mark in lists, links and menus: a character's portrait when it has one, else its kind's icon
+const docIc = d => d && d.type === 'character' && d.img ? `<img class="ic dav" data-cimg="${esc(d.img)}" data-ic="${(TYPES[d.type] || TYPES.note).icon}" alt="">` : icon((TYPES[d && d.type] || TYPES.note).icon);
 function sortedOf(type) {
   const l = [...A.docs.values()].filter(d => d.type === type);
   if (type === 'session') return l.sort((a, b) => (+(a.fields || {}).num || 0) - (+(b.fields || {}).num || 0) || a.created - b.created);
@@ -406,7 +408,7 @@ function renderSide() {
       draggable: !ro, style: `--d:${depth - 1};--c:${typeColor(d)}`, 'data-id': d.id, title: d.title + (ro ? ` (from ${A.wname}, read only)` : ''),
       'data-doc': d.id, onclick: () => openDoc(d.id), oncontextmenu: e => { e.preventDefault(); if (!ro) docMenu(d, e.clientX, e.clientY); } },
       tree ? h('span', { class: 'tcar2' + (kids ? '' : ' none') + (open ? ' open' : ''), html: icon('right'), 'aria-hidden': 'true', onclick: e => { e.stopPropagation(); if (!kids) return; A.prefs.open[d.id] = !open; savePrefs(); renderSide(); } }) : null,
-      h('span', { class: 'ti', html: icon(TYPES[d.type].icon), 'aria-hidden': 'true' }), h('span', { class: 'tt', text: d.title }),
+      h('span', { class: 'ti', html: docIc(d), 'aria-hidden': 'true' }), h('span', { class: 'tt', text: d.title }),
       live ? h('span', { class: 'tlive', html: icon('eye'), title: 'The players see this', 'aria-label': '(shown to the players)' }) : null,
       d.type === 'session' && (d.fields || {}).status === 'Played' ? h('span', { class: 'tdone', html: icon('check'), 'aria-label': '(played)' }) : null,
       tree ? ib('plus', 'New document inside ' + d.title, () => newDocMenu(d.id), 'tadd') : null);
@@ -650,7 +652,7 @@ function renderCtx() {
         const id = resolve(li.title), label = li.label || li.title + (li.heading ? ' › ' + li.heading : '');
         if (!id && (SYNC.isPlayer() || isRO(D(A.view.id) || {}))) return `<a class="wl unknown" href="#" data-unknown="${esc(li.title)}">${esc(label)}</a>`;
         if (!id) return `<a class="wl new" href="#" data-new="${esc(li.title)}" title="Not written yet. Click to start it.">${esc(label)}</a>`;
-        const x = D(id), w = isRO(x); return `<a class="wl${w ? ' world' : ''}" href="#" data-doc="${id}" data-h="${esc(li.heading)}" style="--c:${typeColor(x)}"${w ? ` title="From ${esc(A.wname)}"` : ''}>${icon(TYPES[x.type].icon)}${esc(label)}</a>`;
+        const x = D(id), w = isRO(x); return `<a class="wl${w ? ' world' : ''}" href="#" data-doc="${id}" data-h="${esc(li.heading)}" style="--c:${typeColor(x)}"${w ? ` title="From ${esc(A.wname)}"` : ''}>${docIc(x)}${esc(label)}</a>`;
       }
       if (li.kind === 'table') { const e = TABLE.T.ents.get(li.ref); return `<a class="tl${e ? '' : ' off'}" href="#" data-ent="${esc(li.ref)}" title="In the table's Library">${icon('table')}${esc(li.label || (e && e.name) || 'Table entry')}</a>`; }
       if (li.kind === 'srd') return `<a class="tl srd" href="#" data-srd="${esc(li.ref)}" title="From the SRD">${icon('lore')}${esc(li.label)}</a>`;
@@ -660,6 +662,9 @@ function renderCtx() {
     }
   };
 }
+// portraits in place of icons (docIc) are filled in wherever they appear; one that can't be found turns back into the icon
+const davFill = im => { if (im.dataset.f) return; im.dataset.f = 1; STORE.imageUrl(cid(), im.dataset.cimg).then(u => { if (u) im.src = u; else im.outerHTML = icon(im.dataset.ic || 'note'); }).catch(() => { im.outerHTML = icon(im.dataset.ic || 'note'); }); };
+new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.matches('img.dav')) davFill(n); else if (n.firstElementChild) n.querySelectorAll('img.dav').forEach(davFill); } }).observe(document.documentElement, { childList: true, subtree: true });
 async function hydrate(root) { for (const im of root.querySelectorAll('img[data-cimg]')) { const u = await STORE.imageUrl(cid(), im.dataset.cimg).catch(() => ''); if (u) im.src = u; else im.classList.add('missing'); } }
 function readerClick(e, d) {
   const a = e.target.closest('a,button'); if (!a) return;
@@ -974,7 +979,7 @@ function quickOpen() {
     sel = Math.min(sel, rows.length - 1); if (sel < 0) sel = 0;
     list.replaceChildren(...rows.map((r, i) => h('button', { type: 'button', class: 'qrow' + (i === sel ? ' on' : ''), onclick: () => pick(i) },
       r.make ? [h('span', { class: 'aic', html: icon('plus') }), h('span', { class: 'acl', text: `New note: ${r.make}` })]
-        : [h('span', { class: 'aic', html: icon(TYPES[r.d.type].icon), style: `color:${typeColor(r.d)}` }), h('span', { class: 'acl' }, h('span', { text: r.d.title }), r.snip ? h('small', { text: r.snip }) : null), h('span', { class: 'acs', text: ago(r.d.updated) })])));
+        : [h('span', { class: 'aic', html: docIc(r.d), style: `color:${typeColor(r.d)}` }), h('span', { class: 'acl' }, h('span', { text: r.d.title }), r.snip ? h('small', { text: r.snip }) : null), h('span', { class: 'acs', text: ago(r.d.updated) })])));
   };
   const pick = i => { const r = rows[i]; if (!r) return; m.close(); if (r.make) { const d = newDoc({ type: 'note', title: r.make }); A.modes.set(d.id, 'edit'); openDoc(d.id); } else openDoc(r.d.id); };
   inp.addEventListener('input', () => { sel = 0; draw(); });

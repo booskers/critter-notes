@@ -144,7 +144,7 @@ const DRAWER = (() => {
       box.append(title, list, h('button', { type: 'button', class: 'dradd', onclick: () => { const n = { id: nid(), t: '', done: false }; b.items.push(n); save(); draw(); list.lastElementChild.querySelector('input[type=text]').focus(); } }, h('span', { html: icon('plus') }), 'Add'));
     } else {
       const d = D(b.doc);
-      box.append(d ? h('button', { type: 'button', class: 'drlink', 'data-doc': d.id, style: `--c:${typeColor(d)}`, onclick: () => openDoc(d.id) }, h('span', { html: icon(TYPES[d.type].icon) }), h('b', { text: d.title })) : h('p', { class: 'hint', text: 'This document is gone.' }));
+      box.append(d ? h('button', { type: 'button', class: 'drlink', 'data-doc': d.id, style: `--c:${typeColor(d)}`, onclick: () => openDoc(d.id) }, h('span', { html: docIc(d) }), h('b', { text: d.title })) : h('p', { class: 'hint', text: 'This document is gone.' }));
     }
     // moving it: within the drawer, or out of it onto a document
     grip.addEventListener('pointerdown', e => {

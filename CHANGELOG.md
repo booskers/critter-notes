@@ -1,5 +1,11 @@
 # Changelog
 
+## Next (not released yet)
+- Links made from the link picker (Ctrl+K, the right-click menu, the + beside a line) stay links: they could come out as plain words and vanish once another document was opened, most often when linking to a new, empty character or location.
+- Right-click a word, without selecting it, to link it: Notes offers the documents named in it, also when the name is only part of the word (“Bram” in “Bram's”) or spans two words (“Old Harbour”), and a link to any other document.
+- Right-clicking a link no longer offers to link it a second time; names already linked in a document aren't suggested again, and the link lists show each document once, marked “linked here” when it is.
+- Characters with a portrait show it in place of their icon: in links in the text, the sidebar, the link picker and [[ list, Find, Home's lists and the side panel.
+
 ## 1.6.0 (2026-10-07)
 - Your devices: link a campaign to your phone, tablet or a browser (notes.crittervtt.com), and it stays in step both ways: what you add, change, trash or restore on one, the others do too. On the same Wi-Fi the phone finds the computer by itself; anywhere else it types a 6-letter code. Both screens show the same four digits and the computer approves it.
 - Nothing is stored on the Homebase: every device keeps the whole campaign, and devices talk to each other directly (inside your home network when they share one). Where a network won't allow that, the Homebase passes their messages along, end-to-end encrypted with a key only your devices have. Changes travel while both devices are open; one that was closed catches up the next time both are.
