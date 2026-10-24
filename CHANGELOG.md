@@ -1,6 +1,6 @@
 # Changelog
 
-## Next (not released yet)
+## 1.6.2 (2026-10-24)
 - Undo and redo cover everything, also inside a document: Ctrl+Z and Ctrl+Y in the text take back typing, sections moved (with the menu or by dragging), added, duplicated, removed or turned into something, headings and lists made as you type, bold, italic, highlights and links, and the caret goes back to where it changed. The title and the details use the same history.
 - Each action is a step of its own, named in the history (Move a section up, Make it a clue, Link "Bram"…); long typing is split into steps of a few seconds; making a document is a step of its own, apart from what's written in it next.
 - An undo could be reverted at once by the page it replaced saving its old text (or old title) a moment later. Fixed.
