@@ -1,6 +1,6 @@
 # Changelog
 
-## Next (not released yet)
+## 1.6.1 (2026-10-24)
 - Links made from the link picker (Ctrl+K, the right-click menu, the + beside a line) stay links: they could come out as plain words and vanish once another document was opened, most often when linking to a new, empty character or location.
 - Right-click a word, without selecting it, to link it: Notes offers the documents named in it, also when the name is only part of the word (“Bram” in “Bram's”) or spans two words (“Old Harbour”), and a link to any other document.
 - Right-clicking a link no longer offers to link it a second time; names already linked in a document aren't suggested again, and the link lists show each document once, marked “linked here” when it is.
