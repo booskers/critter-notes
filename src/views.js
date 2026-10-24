@@ -76,7 +76,7 @@ const VIEWS = (() => {
       row('Suggest links while I write', 'When you type the name of another document, a small bubble offers to link it.', sw(P.suggest !== false, v => set('suggest', v), 'Suggest links')),
       row('Lock documents when I leave them', 'A locked document can still be read, ticked and sent, but not changed by accident. The lock above a document opens it again.', sw(!!P.autoLock, v => set('autoLock', v), 'Lock documents when I leave them')),
       row('Tips on the home page', '', sw(!P.noTips, v => set('noTips', !v), 'Tips on the home page')),
-      row('Undo steps', 'How many changes Ctrl+Z can take back (for every document and the campaign). Ctrl+Y redoes.',
+      row('Undo steps', 'How many changes Ctrl+Z can take back: writing, sections moved, added or turned into something, links, documents made, moved or deleted, the campaign and the notes drawer. It works in the text too. Ctrl+Y redoes.',
         h('select', { 'aria-label': 'Undo steps', onchange: e => { P.undoSteps = +e.target.value; savePrefs(); } }, ...[25, 50, 100, 250, 500, 1000].map(n => h('option', { value: n, text: n + ' steps', selected: (+P.undoSteps || 100) === n }))),
         btn('log', 'History…', () => historyDialog(), 'tiny ghost'))));
     if (c && !SYNC.isPlayer()) {

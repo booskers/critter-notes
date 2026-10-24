@@ -54,15 +54,29 @@ async function flush() {
 async function saveCamp() { if (!A.camp) return; histRecord('#camp', campSnap()); A.camp.updated = Date.now(); try { await STORE.saveCampaign(A.camp); } catch (e) { toast('Could not save the campaign: ' + errText(e)); } SYNC.campDirty(); LINK.campDirty(); }
 
 /* ---------- the undo history: every change to a document (and to the campaign) can be undone and redone from anywhere ---------- */
-// each step keeps the before and after of what it changed; typing in one document within 1.5 s is one step;
-// how many steps are kept is a setting (A.prefs.undoSteps). Text fields keep their own Ctrl+Z while you type in them.
-const HIST = { undo: [], redo: [], snap: new Map(), quiet: 0, batch: null };
+// each step keeps the before and after of what it changed. Typing in one document is one step until a pause of 1.5 s
+// (or 8 s of typing); an action (a section moved, added, turned into something, a link) is a step of its own, named by
+// histNext() just before it's saved. How many steps are kept is a setting (A.prefs.undoSteps). Ctrl+Z and Ctrl+Y use
+// this history everywhere: in a document's text, its title and details too. Other text boxes keep their own.
+const HIST = { undo: [], redo: [], snap: new Map(), quiet: 0, batch: null, next: null };
+const histNext = label => { HIST.next = label; };
 const histMax = () => Math.max(10, Math.min(1000, +A.prefs.undoSteps || 100));
 const snapOf = d => JSON.stringify(d, (k, v) => (k === 'updated' ? undefined : v));
-const campSnap = () => (A.camp ? JSON.stringify(A.camp, (k, v) => (k === 'updated' || k === 'last' ? undefined : v)) : null);
+// what of the campaign counts as a change: not when it was saved or what was open last, nor where the notes drawer is
+// scrolled to, nor an empty drawer it makes for itself the first time it's shown
+const campSnap = () => (A.camp ? JSON.stringify(A.camp, function (k, v) {
+  if (k === 'updated' || k === 'last') return undefined;
+  if (this === A.camp && k === 'drawer') return v && v.blocks && v.blocks.length ? { ...v, vx: undefined, vy: undefined } : undefined;
+  return v;
+}) : null);
 function histReset() { HIST.undo = []; HIST.redo = []; HIST.snap = new Map(); for (const d of A.docs.values()) HIST.snap.set(d.id, snapOf(d)); HIST.snap.set('#camp', campSnap()); }
+const CAMP_PARTS = [['name', 'Rename the campaign'], ['drawer', 'Change the notes drawer'], ['cal', 'Change the calendar'], ['clocks', 'Change the clocks'], ['groups', 'Change the groups'], ['color', 'Change the campaign\'s colour'], ['world', 'Change the shared world'], ['table', 'Change the linked table'], ['homebg', 'Change Home\'s background']];
 function histLabel(ch) {
-  if (ch.id === '#camp') return 'Change the campaign';
+  if (ch.id === '#camp') {
+    const b = ch.before ? JSON.parse(ch.before) : {}, a = ch.after ? JSON.parse(ch.after) : {};
+    const hit = CAMP_PARTS.find(([k]) => JSON.stringify(b[k]) !== JSON.stringify(a[k]));
+    return hit ? hit[1] : 'Change the campaign';
+  }
   const b = ch.before && JSON.parse(ch.before), a = ch.after && JSON.parse(ch.after), t = (a || b || {}).title || 'a document';
   if (!b) return `Create "${t}"`;
   if (!a) return `Delete "${t}"`;
@@ -80,10 +94,10 @@ function histRecord(id, after) {
   HIST.snap.set(id, after);
   const ch = { id, before, after };
   if (HIST.batch) { const same = HIST.batch.find(c => c.id === id); if (same) same.after = after; else HIST.batch.push(ch); return; }
-  const top = HIST.undo[HIST.undo.length - 1], now = Date.now();
-  // more typing in the same document a moment later joins the step before
-  if (top && top.changes.length === 1 && top.changes[0].id === id && top.changes[0].after === before && before && after && now - top.t < 1500 && !top.closed) { top.changes[0].after = after; top.t = now; top.label = histLabel(top.changes[0]); }
-  else { HIST.undo.push({ changes: [ch], t: now, label: histLabel(ch) }); if (HIST.undo.length > histMax()) HIST.undo.splice(0, HIST.undo.length - histMax()); }
+  const top = HIST.undo[HIST.undo.length - 1], now = Date.now(), named = HIST.next; HIST.next = null;
+  // more typing in the same document a moment later joins the step before (an action never does)
+  if (!named && top && top.changes.length === 1 && top.changes[0].id === id && top.changes[0].before && top.changes[0].after === before && before && after && now - top.t < 1500 && now - (top.t0 || top.t) < 8000 && !top.closed) { top.changes[0].after = after; top.t = now; top.label = histLabel(top.changes[0]); }
+  else { HIST.undo.push({ changes: [ch], t: now, t0: now, label: named || histLabel(ch), closed: !!named }); if (HIST.undo.length > histMax()) HIST.undo.splice(0, HIST.undo.length - histMax()); }
   HIST.redo = [];
 }
 // several changes as one step (a delete that moves its children, a tidy-up)
@@ -95,14 +109,17 @@ function histGroup(label, fn) {
   done(); return r;
 }
 async function histApply(id, state) {
-  if (id === '#camp') { if (!A.camp || !state) return; const o = JSON.parse(state); for (const k of Object.keys(A.camp)) if (k !== 'updated' && k !== 'last' && !(k in o)) delete A.camp[k]; Object.assign(A.camp, o); HIST.snap.set(id, state); await saveCamp(); return; }
+  if (id === '#camp') { if (!A.camp || !state) return; const o = JSON.parse(state), view = A.camp.drawer ? { vx: A.camp.drawer.vx, vy: A.camp.drawer.vy } : null; for (const k of Object.keys(A.camp)) if (k !== 'updated' && k !== 'last' && !(k in o)) delete A.camp[k]; Object.assign(A.camp, o); if (view && A.camp.drawer) Object.assign(A.camp.drawer, view); HIST.snap.set(id, state); await saveCamp(); return; }
   if (state === null) { const d = A.docs.get(id); if (d) await toTrash(d); HIST.snap.delete(id); return; }
   const o = JSON.parse(state); let d = A.docs.get(id);
   if (d) { for (const k of Object.keys(d)) delete d[k]; Object.assign(d, o); } else { d = A.trash.get(id) || o; for (const k of Object.keys(d)) delete d[k]; Object.assign(d, o); A.trash.delete(id); A.docs.set(id, d); }
   delete d.trashed; d.updated = Date.now(); A.dirty.add(id); SYNC.dirty(d); LINK.dirty(d); HIST.snap.set(id, state);
 }
 async function histStep(dir) {
+  const a = document.activeElement, inEd = A.ed && A.ed.root.contains(a), field = !inEd && a && a.closest && a.closest('.page input, .page textarea');
+  if (field) a.blur();   // the title or a detail: what's in it is saved before the step
   if (A.ed) A.ed.commit();
+  const was = A.view.k === 'doc' && D(A.view.id) ? D(A.view.id).body : null, drawerWas = A.camp && JSON.stringify(A.camp.drawer);
   const from = dir < 0 ? HIST.undo : HIST.redo, to = dir < 0 ? HIST.redo : HIST.undo, e = from.pop();
   if (!e) { toast(dir < 0 ? 'Nothing to undo.' : 'Nothing to redo.'); return; }
   e.closed = true; HIST.quiet++;
@@ -111,6 +128,9 @@ async function histStep(dir) {
   to.push(e);
   await flush(); reindex(); renderSide();
   const v = A.view; if (v.k === 'doc' && !D(v.id)) go({ k: 'home' }, true); else renderMain();
+  if (A.camp && JSON.stringify(A.camp.drawer) !== drawerWas) DRAWER.mount();
+  // back in the text: the caret where it changed, so the next Ctrl+Z goes on from there
+  if (inEd && A.ed && A.view.k === 'doc' && was !== null) A.ed.focusDiff(was);
   toast((dir < 0 ? 'Undone: ' : 'Redone: ') + e.label, dir < 0 ? { label: 'Redo', fn: () => histStep(1) } : { label: 'Undo', fn: () => histStep(-1) });
 }
 const undo = () => histStep(-1), redo = () => histStep(1);
@@ -128,11 +148,14 @@ function historyDialog() {
   const m = modal('Undo history', h('div', {}, h('p', { class: 'hint', text: `Click a step to undo it and everything after it. ${histMax()} steps are kept (Settings › Writing). Ctrl+Z undoes, Ctrl+Y redoes.` }), list),
     [btn('undo', 'Redo', async () => { await histStep(1); draw(); }, 'ghost'), btn(null, 'Close', () => m.close(), 'primary')]);
 }
-// Ctrl+Z and Ctrl+Y (or Ctrl+Shift+Z) anywhere but in a text field, which keeps its own
+// Ctrl+Z and Ctrl+Y (or Ctrl+Shift+Z) anywhere: also in a document's title and details (its text has the same, in editor.js);
+// a search box or a dialog's text box keeps the browser's own
 document.addEventListener('keydown', e => {
   if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
   const k = e.key.toLowerCase(); if (k !== 'z' && k !== 'y') return;
-  if (e.target.closest && e.target.closest('input,textarea,select,[contenteditable="true"],.modal')) return;
+  const t = e.target.closest ? e.target : document.body;
+  if (t.closest('.modal,.vis')) return;   // a dialog keeps its own; the document's text has its own handler (the same history)
+  if (t.closest('input,textarea,select,[contenteditable="true"]') && !t.closest('.page input,.page textarea')) return;
   if (!A.camp || SYNC.isPlayer()) return;
   e.preventDefault();
   if (k === 'y' || e.shiftKey) redo(); else undo();
@@ -502,7 +525,7 @@ function renderDoc(main, d) {
     full ? fullTitle(d, ro) : null,
     h('div', { class: 'grow' }),
     d.type === 'session' && !ro ? btn(mode === 'run' ? 'stop' : 'play', mode === 'run' ? 'Stop running' : 'Run the session', () => setMode(d, mode === 'run' ? 'read' : 'run'), 'tiny runb' + (mode === 'run' ? ' on' : ' accent2')) : null,
-    full ? h('button', { type: 'button', class: 'ib' + (A.prefs.drawer ? ' on' : ''), 'aria-pressed': String(!!A.prefs.drawer), title: 'Details and notes', 'aria-label': 'Details and notes', html: icon('panel'), onclick: () => { A.prefs.drawer = !A.prefs.drawer; savePrefs(); renderMain(); } }) : null,
+    full ? h('button', { type: 'button', class: 'ib' + (A.prefs.details ? ' on' : ''), 'aria-pressed': String(!!A.prefs.details), title: 'Details and notes', 'aria-label': 'Details and notes', html: icon('panel'), onclick: () => { A.prefs.details = !A.prefs.details; savePrefs(); renderMain(); } }) : null,
     lockBtn,
     !full ? h('button', { type: 'button', class: 'ib mindb' + (mode === 'mind' ? ' on' : ''), title: 'Mind map (Ctrl+M)', 'aria-label': 'Mind map', 'aria-pressed': String(mode === 'mind'), html: icon('mind'), onclick: () => setMode(d, mode === 'mind' ? 'read' : 'mind') }) : null,
     SYNC.isPlayer() ? null : Object.assign(btn('send', 'Send to table', e => VIEWS.sendMenu(d, e.currentTarget), 'tiny primary sendb'), { ariaLabel: 'Send to table' }),   // (its words fold away when narrow)
@@ -514,8 +537,9 @@ function renderDoc(main, d) {
     const stage = h('div', { class: 'fullstage' }); main.append(h('h1', { class: 'sr', text: `${d.title} (${TYPES[d.type].name})` }), stage);
     if (d.type === 'board') { const host = h('div', { class: 'boardbox' }); stage.append(host); queueMicrotask(() => BOARD.render(host, d, { onChange: () => touch(d), ro })); }
     else stage.append(mapPane(d, ro));
-    if (A.prefs.drawer) {
-      const dr = h('aside', { class: 'drawer', 'aria-label': 'Details and notes' }, ib('x', 'Close', () => { A.prefs.drawer = false; savePrefs(); renderMain(); }, 'drawx'), propsBox(d, ro), h('div', { class: 'rsec', text: 'Notes' }));
+    // (its own setting: it once shared prefs.drawer with the notes drawer, and closing it turned that off)
+    if (A.prefs.details) {
+      const dr = h('aside', { class: 'drawer', 'aria-label': 'Details and notes' }, ib('x', 'Close', () => { A.prefs.details = false; savePrefs(); renderMain(); }, 'drawx'), propsBox(d, ro), h('div', { class: 'rsec', text: 'Notes' }));
       const body = h('div', { class: 'dbody' }); dr.append(body); stage.append(dr);
       A.ed = ED.mount(body, d, { locked: ro });
     }
@@ -573,7 +597,8 @@ function docHead(d, ro) {
   // and again once a web font (a font set, the dyslexia font) has arrived and made the title wider or narrower
   if (document.fonts) { document.fonts.ready.then(fit); setTimeout(fit, 900); }
   title.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); title.blur(); if (A.ed) A.ed.focus(); } if (e.key === 'Escape') { title.value = d.title; title.blur(); } });
-  const keepTitle = () => { if (!ro && title.value.trim() && title.value.trim() !== d.title) { renameDoc(d, title.value); if (document.activeElement !== title) title.value = d.title; paintTitle(); renderSide(); } };   // (while it's being typed in, the box is left alone)
+  const keepTitle = () => { if (!title.isConnected) return;   // a page that was replaced (an undo, another document) renames nothing
+    if (!ro && title.value.trim() && title.value.trim() !== d.title) { renameDoc(d, title.value); if (document.activeElement !== title) title.value = d.title; paintTitle(); renderSide(); } };   // (while it's being typed in, the box is left alone)
   const titleSoon = debounce(keepTitle, 1200);
   title.addEventListener('input', () => { if (!ro) titleSoon(); });
   title.addEventListener('commit-title', keepTitle);

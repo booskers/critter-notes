@@ -1,5 +1,12 @@
 # Changelog
 
+## Next (not released yet)
+- Undo and redo cover everything, also inside a document: Ctrl+Z and Ctrl+Y in the text take back typing, sections moved (with the menu or by dragging), added, duplicated, removed or turned into something, headings and lists made as you type, bold, italic, highlights and links, and the caret goes back to where it changed. The title and the details use the same history.
+- Each action is a step of its own, named in the history (Move a section up, Make it a clue, Link "Bram"…); long typing is split into steps of a few seconds; making a document is a step of its own, apart from what's written in it next.
+- An undo could be reverted at once by the page it replaced saving its old text (or old title) a moment later. Fixed.
+- The notes drawer's scroll position and the empty drawer it makes for itself no longer show up as steps of their own.
+- Closing a document's Details panel no longer turns off the notes drawer (the two shared a setting).
+
 ## 1.6.1 (2026-10-24)
 - Links made from the link picker (Ctrl+K, the right-click menu, the + beside a line) stay links: they could come out as plain words and vanish once another document was opened, most often when linking to a new, empty character or location.
 - Right-click a word, without selecting it, to link it: Notes offers the documents named in it, also when the name is only part of the word (“Bram” in “Bram's”) or spans two words (“Old Harbour”), and a link to any other document.

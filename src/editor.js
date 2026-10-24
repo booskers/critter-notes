@@ -144,6 +144,8 @@ const ED = (() => {
     }
     function commit() {
       clearTimeout(t); typingSince = 0; if (locked || isRO(d)) return;
+      // an editor that was replaced (by an undo, or another document) never writes its old text back
+      if (!root.isConnected) return;
       normalize();
       const md = blocksMd(root) + '\n';
       if (md.trim() !== d.body.trim()) { d.body = md.trim() ? md : ''; touch(d); if (o.onChange) o.onChange(); }
@@ -154,8 +156,11 @@ const ED = (() => {
     const idle = fn => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 400 }) : setTimeout(fn, 0));
     const soon = () => { clearTimeout(t); const now = Date.now(); if (!typingSince) typingSince = now; t = setTimeout(() => idle(commit), now - typingSince > 2500 ? 0 : 600); };
     // rebuild from Markdown after a change in structure, and put the caret back in the n-th section
-    function reflow(md, focusAt) {
-      d.body = md.trim() ? md.replace(/\n{3,}/g, '\n\n').trim() + '\n' : ''; touch(d); render();
+    function reflow(md, focusAt, label) {
+      d.body = md.trim() ? md.replace(/\n{3,}/g, '\n\n').trim() + '\n' : ''; render();
+      // kept as the page reads it back, so the next save finds no difference to make a step of
+      const back = blocksMd(root) + '\n'; if (back.trim()) d.body = back;
+      histNext(label || `Change the sections of "${d.title}"`); touch(d); HIST.next = null;
       if (focusAt !== undefined) { const b = tops()[Math.max(0, Math.min(tops().length - 1, focusAt))]; if (b) placeEnd(b); }
       if (o.onChange) o.onChange();
     }
@@ -199,16 +204,18 @@ const ED = (() => {
       const i = tops().indexOf(b), parts = allMd(), k = m[1];
       parts[i] = k[0] === '#' ? k + ' ​' : k === '-' || k === '*' ? '- ​' : k === '1.' ? '1. ​' : k[0] === '[' ? '- [ ] ​' : k === '>' ? '> [!quote] ' : '---';
       if (k === '---') parts.splice(i + 1, 0, '');
-      reflow(joinMd(parts) + (k === '---' && i === parts.length - 2 ? '\n\n​' : ''), k === '---' ? i + 1 : i);
+      commit();
+      reflow(joinMd(parts) + (k === '---' && i === parts.length - 2 ? '\n\n​' : ''), k === '---' ? i + 1 : i, k[0] === '#' ? 'Make a heading' : k === '---' ? 'Add a divider' : k === '>' ? 'Make a quote' : 'Make a list');
     }
     root.addEventListener('keydown', e => {
       if (acKey(e)) return;
       if (e.key === 'Escape') { bar.hidden = true; sugg.hidden = true; return; }
-      if (locked) return;
+      if (locked && !((e.ctrlKey || e.metaKey) && ['z', 'y'].includes(e.key.toLowerCase()))) return;
       const b = caretBlock(), s = getSelection();
       const c = e.ctrlKey || e.metaKey;
-      if (c && !e.shiftKey && ['b', 'i'].includes(e.key.toLowerCase())) { e.preventDefault(); document.execCommand(e.key.toLowerCase() === 'b' ? 'bold' : 'italic'); soon(); return; }
+      if (c && !e.shiftKey && ['b', 'i'].includes(e.key.toLowerCase())) { e.preventDefault(); fmt(e.key.toLowerCase() === 'b' ? 'bold' : 'italic', e.key.toLowerCase() === 'b' ? 'Bold' : 'Italic'); return; }
       if (c && e.key.toLowerCase() === 'k') { e.preventDefault(); e.stopPropagation(); linkSelection(); return; }
+      if (c && !e.altKey && ['z', 'y'].includes(e.key.toLowerCase())) { e.preventDefault(); e.stopPropagation(); if (SYNC.isPlayer()) return; closeAC(); if (e.key.toLowerCase() === 'y' || e.shiftKey) redo(); else undo(); return; }
       if (e.key === 'Tab' && s.anchorNode && s.anchorNode.parentElement && s.anchorNode.parentElement.closest('li')) { e.preventDefault(); document.execCommand(e.shiftKey ? 'outdent' : 'indent'); soon(); return; }
       if (e.key !== 'Enter' || e.shiftKey || c) return;
       // in a box's title: on to its body
@@ -277,7 +284,7 @@ const ED = (() => {
       const b = caretBlock() || cur, list = tops(), i = b ? list.indexOf(b) : list.length - 1, parts = allMd();
       const empty = b && !b.textContent.trim() && !b.querySelector('img,input,.atom');
       if (empty) parts[i] = md; else parts.splice(i + 1, 0, md);
-      reflow(joinMd(parts), empty ? i : i + 1);
+      reflow(joinMd(parts), empty ? i : i + 1, `Add a section to "${d.title}"`);
       const nb = tops()[empty ? i : i + 1];
       if (nb) { const t2 = nb.querySelector('.ctt') || nb; const r = document.createRange(); r.selectNodeContents(t2); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
     }
@@ -291,6 +298,7 @@ const ED = (() => {
     function putInline(r, md, space) {
       const t = document.createElement('template'); t.innerHTML = MD.inline(md, ctx(true));
       const nodes = [...t.content.childNodes]; if (!nodes.length || !root.contains(r.startContainer)) return;
+      commit();
       r.deleteContents();
       const frag = document.createDocumentFragment();
       // added into a line (not over selected words): a space before it when it would touch the word before
@@ -304,7 +312,8 @@ const ED = (() => {
       r.insertNode(frag);
       root.focus({ preventScroll: true });
       const c = document.createRange(); c.setStartAfter(last); c.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(c);
-      root.classList.remove('empty'); bar.hidden = true; commit();
+      root.classList.remove('empty'); bar.hidden = true;
+      const li = /^\[\[([^\]|]+)/.exec(md); histNext(li ? `Link "${li[1].replace(/^\w+:/, '')}"` : 'Add to the line'); commit(); HIST.next = null;
     }
     function pickDocInto() {
       const s = getSelection(), r = s.rangeCount && root.contains(s.anchorNode) ? s.getRangeAt(0).cloneRange() : null;
@@ -325,20 +334,20 @@ const ED = (() => {
       if (!dragged) return; e.preventDefault(); e.stopPropagation();
       commit(); const parts = allMd(), from = tops().indexOf(dragged); let to = +drop.dataset.at;
       const [m] = parts.splice(from, 1); if (to > from) to--; parts.splice(to, 0, m);
-      dragged = null; drop.hidden = true; reflow(joinMd(parts), to);
+      dragged = null; drop.hidden = true; reflow(joinMd(parts), to, `Move a section in "${d.title}"`);
     }, true);
     // the section's menu, also for the keyboard: move, turn into, send, remove
     function sectionMenu(b, at) {
       if (!b) return; commit();
-      const i = tops().indexOf(b), md = blockMd(b), move = dir => { const p = allMd(); const j = i + dir; if (j < 0 || j >= p.length) return; [p[i], p[j]] = [p[j], p[i]]; reflow(joinMd(p), j); };
+      const i = tops().indexOf(b), md = blockMd(b), move = dir => { const p = allMd(); const j = i + dir; if (j < 0 || j >= p.length) return; [p[i], p[j]] = [p[j], p[i]]; reflow(joinMd(p), j, `Move a section ${dir < 0 ? 'up' : 'down'} in "${d.title}"`); };
       menu([{ head: 'This section' },
         ...sendItems(() => md),
         '-',
         { label: 'Move up', icon: 'back', disabled: i <= 0, fn: () => move(-1) }, { label: 'Move down', icon: 'fwd', disabled: i >= tops().length - 1, fn: () => move(1) },
-        { head: 'Turn it into' }, ...MAKE.map(([k, l, ic]) => ({ label: l, icon: ic, fn: () => { const p = allMd(); p[i] = turnInto(k, md); reflow(joinMd(p), i); } })),
+        { head: 'Turn it into' }, ...MAKE.map(([k, l, ic]) => ({ label: l, icon: ic, fn: () => { const p = allMd(); p[i] = turnInto(k, md); reflow(joinMd(p), i, `Turn a section into ${l.toLowerCase()}`); } })),
         '-',
-        { label: 'Duplicate', icon: 'copy', fn: () => { const p = allMd(); p.splice(i + 1, 0, md); reflow(joinMd(p), i + 1); } },
-        { label: 'Remove the section', icon: 'trash', cls: 'bad', fn: () => { const p = allMd(); p.splice(i, 1); reflow(joinMd(p), i - 1); toast('Section removed.', { label: 'Undo', fn: () => { const q = allMd(); q.splice(i, 0, md); reflow(joinMd(q), i); } }); } }], at);
+        { label: 'Duplicate', icon: 'copy', fn: () => { const p = allMd(); p.splice(i + 1, 0, md); reflow(joinMd(p), i + 1, `Duplicate a section in "${d.title}"`); } },
+        { label: 'Remove the section', icon: 'trash', cls: 'bad', fn: () => { const p = allMd(); p.splice(i, 1); reflow(joinMd(p), i - 1, `Remove a section from "${d.title}"`); toast('Section removed.', { label: 'Undo', fn: () => undo() }); } }], at);
     }
 
     /* ---------- make it…: what selected text can become ---------- */
@@ -361,9 +370,10 @@ const ED = (() => {
         const pre = document.createRange(); pre.setStart(a, 0); pre.setEnd(r.startContainer, r.startOffset);
         const post = document.createRange(); post.setStart(r.endContainer, r.endOffset); post.setEnd(a, a.childNodes.length);
         const frag = x => { const dv = document.createElement('div'); dv.append(x.cloneContents()); return inl(dv).trim(); };
+        const lbl = 'Make it ' + (MAKE.find(m => m[0] === k) || [0, 'something'])[1].toLowerCase();
         parts.splice(i, 1, frag(pre), turnInto(k, frag(r)), frag(post));
-        reflow(joinMd(parts), frag(pre) ? i + 1 : i);
-      } else { const md = parts.slice(i, j + 1).join('\n\n'); parts.splice(i, j - i + 1, turnInto(k, md)); reflow(joinMd(parts), i); }
+        reflow(joinMd(parts), frag(pre) ? i + 1 : i, lbl);
+      } else { const md = parts.slice(i, j + 1).join('\n\n'); parts.splice(i, j - i + 1, turnInto(k, md)); reflow(joinMd(parts), i, 'Make it ' + (MAKE.find(m => m[0] === k) || [0, 'something'])[1].toLowerCase()); }
       bar.hidden = true;
     }
 
@@ -373,7 +383,7 @@ const ED = (() => {
       const b = (ic, title, fn) => h('button', { type: 'button', class: 'ib', title, 'aria-label': title, html: icon(ic), onmousedown: e => e.preventDefault(), onclick: e => fn(e.currentTarget) });
       bar.replaceChildren(...(locked || isRO(d)
         ? [b('send', 'Send to the table chat', () => sendSel('chat')), b('users', 'Whisper it…', a => whisperMenu(a, () => selMd())), b('copy', 'Copy', () => copySel())]
-        : [b('bold', 'Bold (Ctrl+B)', () => { document.execCommand('bold'); soon(); }), b('italic', 'Italic (Ctrl+I)', () => { document.execCommand('italic'); soon(); }),
+        : [b('bold', 'Bold (Ctrl+B)', () => fmt('bold', 'Bold')), b('italic', 'Italic (Ctrl+I)', () => fmt('italic', 'Italic')),
           b('hl', 'Highlight', () => { wrapSel('mark'); }), b('link', 'Link to a document (Ctrl+K)', () => linkSelection()), h('span', { class: 'esep' }),
           h('button', { type: 'button', class: 'btn tiny ghost', onmousedown: e => e.preventDefault(), onclick: e => makeMenu(e.currentTarget) }, h('span', { text: 'Make it…' })),
           h('span', { class: 'esep' }), b('send', 'Send to the table chat', () => sendSel('chat'))]));
@@ -381,7 +391,9 @@ const ED = (() => {
       bar.style.left = Math.max(0, Math.min(w.width - bar.offsetWidth, rect.left - w.left + rect.width / 2 - bar.offsetWidth / 2)) + 'px';
       bar.style.top = (rect.top - w.top - bar.offsetHeight - 8 < 0 ? rect.bottom - w.top + 8 : rect.top - w.top - bar.offsetHeight - 8) + 'px';
     }
-    function wrapSel(tag) { const s = getSelection(); if (!s.rangeCount) return; const r = s.getRangeAt(0), m = document.createElement(tag); try { r.surroundContents(m); } catch { m.append(r.extractContents()); r.insertNode(m); } commit(); }
+    function wrapSel(tag) { const s = getSelection(); if (!s.rangeCount) return; commit(); const r = s.getRangeAt(0), m = document.createElement(tag); try { r.surroundContents(m); } catch { m.append(r.extractContents()); r.insertNode(m); } histNext('Highlight'); commit(); HIST.next = null; }
+    // bold and italic (the browser's): what was typed first is a step, then the formatting is one
+    const fmt = (cmd, label) => { commit(); document.execCommand(cmd); histNext(label); commit(); HIST.next = null; };
     function makeMenu(at) { menu([{ head: 'Make it' }, ...MAKE.map(([k, l, ic]) => ({ label: l, icon: ic, fn: () => makeIt(k) }))], at); }
     const selMd = () => { const s = getSelection(); if (!s.rangeCount) return ''; const dv = document.createElement('div'); dv.append(s.getRangeAt(0).cloneContents()); return [...dv.childNodes].some(n => n.nodeType === 1 && /^(P|H\d|UL|OL|DIV|BLOCKQUOTE|PRE)$/.test(n.tagName)) ? blocksMd(dv) : inl(dv).trim(); };
     function copySel() { navigator.clipboard.writeText(getSelection().toString()).then(() => toast('Copied.')); }
@@ -401,7 +413,7 @@ const ED = (() => {
         putInline(r, x.title.toLowerCase() === text.toLowerCase() ? `[[${x.title}]]` : `[[${x.title}|${text}]]`, false);
       });
     }
-    function unlink(a) { const li = MD.linkInfo(a.dataset.md.replace(/^\[\[|\]\]$/g, '')); a.replaceWith(document.createTextNode(li.label || li.title || li.ref || '')); commit(); }
+    function unlink(a) { commit(); const li = MD.linkInfo(a.dataset.md.replace(/^\[\[|\]\]$/g, '')); a.replaceWith(document.createTextNode(li.label || li.title || li.ref || '')); histNext('Remove a link'); commit(); HIST.next = null; }
     // a name of another document, typed without a link: offer to link it
     const suggestSoon = debounce(b => suggest(b), 700);
     function suggest(b) {
@@ -527,8 +539,13 @@ const ED = (() => {
     });
 
     function setLocked(v) { commit(); locked = v; wrap.classList.toggle('locked', v); bar.hidden = sugg.hidden = gutter.hidden = true; render(); }
+    function focusDiff(old) {
+      const was = String(old || '').trim().split(/\n{2,}/), now = allMd(); let i = 0;
+      while (i < now.length && i < was.length && now[i].trim() === was[i].trim()) i++;
+      const b = tops()[Math.min(i, tops().length - 1)]; if (b) placeEnd(b); else root.focus();
+    }
     // dropMd: something dragged in (from the notes drawer) goes where it was let go
-    return { root, setLocked, commit, render, insertBlockMd, dropMd: (md, x, y) => { placeAtPoint(x, y); insertBlockMd(md); }, focus: () => { const b = root.lastElementChild; if (b) placeEnd(b); } };
+    return { root, setLocked, commit, render, insertBlockMd, focusDiff, dropMd: (md, x, y) => { placeAtPoint(x, y); insertBlockMd(md); }, focus: () => { const b = root.lastElementChild; if (b) placeEnd(b); } };
   }
 
   // the documents a document links to already
